@@ -244,7 +244,7 @@ export function InvoicePrint({
         </div>
         <div className="flex-shrink-0">
           {/* هنا خلينا مسار الشعار favicon وكبرنا الحجم بـ w-40 */}
-          <img src="/favicon.png" alt={name} className="w-30 h-auto object-contain" />
+          <img src="/Nukhbt-Almstqbl-CMYK-02.png" alt={name} className="w-60 h-auto object-contain [image-rendering:-webkit-optimize-contrast]" />
         </div>
       </header>
       <div className="pi-doc">
@@ -262,27 +262,31 @@ export function InvoicePrint({
   );
 
   // التعديل 2: تنسيق منطقة الختم عشان تكون متسنترة بشكل جميل ومنظم
-  const signBlock = (
-    <div className="mt-12 flex justify-center w-full">
-      <div className="flex flex-col items-center">
-        <img src="/__l5e/assets-v1/fd8ddc7e-2680-4b62-90b0-bb8de6125f75/office-stamp.jpg" alt="Stamp" className="w-32 h-auto object-contain mb-2" />
-        <span className="font-bold text-lg border-t border-gray-400 pt-2 w-48 text-center">{t.officeSign}</span>
-      </div>
-    </div>
-  );
-
-  // التعديل 3: ضبط الفوتر
+  // التعديل 3: ضبط الفوتر بحيث الختم يكون بجانب الملاحظات في كل صفحة
   const footer = (isLast: boolean) => (
-    <footer className="pi-footer pi-repeat-footer mt-8">
-      {isLast ? signBlock : (
-        <div className="flex justify-center mt-4">
-          <img src="/__l5e/assets-v1/fd8ddc7e-2680-4b62-90b0-bb8de6125f75/office-stamp.jpg" alt="Stamp" className="w-24 opacity-50" />
+    <footer className="pi-footer pi-repeat-footer mt-8 pt-4 border-t border-gray-200">
+      {/* حاوية تجمع النصوص والختم جنب بعض */}
+      <div className="flex items-center justify-between w-full">
+        {/* الملاحظات والنصوص على اليمين/اليسار */}
+        <div className="flex-1 text-xs text-gray-500 space-y-1 ltr:text-left rtl:text-right">
+          {office?.invoice_footer && <p>{office.invoice_footer}</p>}
+          <p>{t.fine}</p>
+          <p className="mt-1 font-semibold text-gray-400">{t.issuedBy(name)}</p>
         </div>
-      )}
-      <div className="text-center text-sm text-gray-500 mt-8 border-t border-gray-200 pt-4">
-        {office?.invoice_footer && <p>{office.invoice_footer}</p>}
-        <p>{t.fine}</p>
-        <p className="mt-2 font-semibold text-gray-400">{t.issuedBy(name)}</p>
+
+        {/* صورة الختم بجانب الكلام في كل صفحة */}
+        <div className="flex-shrink-0 mx-4 flex flex-col items-center">
+          <img 
+            src="/stamp.jpeg" 
+            alt="Stamp" 
+            className="w-24 h-auto object-contain [image-rendering:-webkit-optimize-contrast]" 
+          />
+          {isLast && (
+            <span className="text-[10px] font-bold mt-1 text-gray-700 border-t border-gray-300 pt-1 w-24 text-center">
+              {t.officeSign}
+            </span>
+          )}
+        </div>
       </div>
     </footer>
   );
