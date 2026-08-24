@@ -3,6 +3,10 @@ import { createPortal } from "react-dom";
 
 import { dateAr, INVOICE_STATUS, money, PAYMENT_METHODS } from "@/lib/domain";
 import type { OfficeSettings } from "@/lib/office";
+import officeLogo from "@/assets/office-logo.png.asset.json";
+import officeStamp from "@/assets/office-stamp.jpg.asset.json";
+
+export type InvoiceLang = "ar" | "en";
 
 export type PrintInvoice = {
   invoice_no: string;
@@ -18,7 +22,23 @@ export type PrintInvoice = {
   status: string;
   notes: string | null;
   clients: { name: string; phone: string | null } | null;
-  transactions: { ref_no: string; type_name: string; gov_entity: string | null } | null;
+  transactions: {
+    ref_no: string;
+    type_name: string;
+    type_name_en?: string | null;
+    gov_entity: string | null;
+    gov_entity_en?: string | null;
+  } | null;
+};
+
+export type PrintItem = {
+  id: string;
+  gov_entity: string | null;
+  gov_entity_en?: string | null;
+  type_name: string;
+  type_name_en?: string | null;
+  gov_fee: number;
+  office_fee: number;
 };
 
 export type PrintPayment = {
@@ -29,184 +49,358 @@ export type PrintPayment = {
   reference: string | null;
 };
 
+
+const INVOICE_STATUS_EN: Record<string, string> = {
+  unpaid: "Unpaid",
+  partial: "Partially paid",
+  paid: "Paid",
+  refunded: "Refunded",
+};
+
+const PAYMENT_METHODS_EN: Record<string, string> = {
+  cash: "Cash",
+  transfer: "Bank transfer",
+  link: "Payment link",
+  card: "Card",
+};
+
+const T = {
+  ar: {
+    docTitle: "فاتورة ضريبية",
+    docTitleAlt: "TAX INVOICE",
+    invoiceNo: "رقم الفاتورة",
+    issueDate: "تاريخ الإصدار",
+    dueDate: "تاريخ الاستحقاق",
+    status: "الحالة",
+    client: "بيانات العميل",
+    trx: "بيانات المعاملة",
+    idx: "#",
+    item: "البيان",
+    amount: "المبلغ",
+    govLine: "رسوم حكومية (أمانات تُدفع للجهات الحكومية)",
+    officeLine: "أتعاب المكتب",
+    defaultService: "خدمة تخليص",
+    subtotal: "المجموع قبل الخصم",
+    discount: "الخصم",
+    vat: "ضريبة القيمة المضافة",
+    grand: "الإجمالي المستحق",
+    paid: "المدفوع",
+    due: "المتبقي",
+    paymentsTitle: "سجل الدفعات",
+    date: "التاريخ",
+    method: "الطريقة",
+    reference: "المرجع",
+    notes: "ملاحظات",
+    phone: "هاتف",
+    license: "رقم الرخصة",
+    trn: "الرقم الضريبي (TRN)",
+    fine: "الرسوم الحكومية تُحصَّل لصالح الجهات الحكومية ولا تُحتسب ضمن دخل المكتب، ولا تخضع لضريبة القيمة المضافة.",
+    officeSign: "توقيع المكتب",
+    clientSign: "توقيع العميل",
+    issuedBy: (n: string) => `هذه الفاتورة صادرة إلكترونياً من ${n}`,
+    dash: "—",
+  },
+  en: {
+    docTitle: "TAX INVOICE",
+    docTitleAlt: "فاتورة ضريبية",
+    invoiceNo: "Invoice No.",
+    issueDate: "Issue date",
+    dueDate: "Due date",
+    status: "Status",
+    client: "Client details",
+    trx: "Transaction details",
+    idx: "#",
+    item: "Description",
+    amount: "Amount",
+    govLine: "Government fees (paid directly to authorities)",
+    officeLine: "Service fees",
+    defaultService: "Clearing service",
+    subtotal: "Subtotal",
+    discount: "Discount",
+    vat: "VAT",
+    grand: "Total due",
+    paid: "Paid",
+    due: "Balance",
+    paymentsTitle: "Payments",
+    date: "Date",
+    method: "Method",
+    reference: "Reference",
+    notes: "Notes",
+    phone: "Tel",
+    license: "License No.",
+    trn: "TRN",
+    fine: "Government fees are collected on behalf of government authorities, are not office income and are not subject to VAT.",
+    officeSign: "Office signature",
+    clientSign: "Client signature",
+    issuedBy: (n: string) => `This invoice was issued electronically by ${n}`,
+    dash: "—",
+  },
+} as const;
+
 export function InvoicePrint({
   office,
   invoice,
   payments,
+  items = [],
+  lang = "ar",
 }: {
   office: OfficeSettings | null | undefined;
   invoice: PrintInvoice;
   payments: PrintPayment[];
+  items?: PrintItem[];
+  lang?: InvoiceLang;
 }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  const t = T[lang];
+
+  const en = lang === "en";
   const remaining = Number(invoice.total) - Number(invoice.paid);
-  const name = office?.legal_name?.trim() || "مكتب تخليص المعاملات";
+  const arName = office?.legal_name?.trim() || "مكتب تخليص المعاملات";
+  const enName = office?.legal_name_en?.trim() || "";
+  const name = en ? enName || arName : arName;
+  const subName = en ? (enName ? arName : "") : enName;
+  const serviceName = en
+    ? invoice.transactions?.type_name_en || invoice.transactions?.type_name || t.defaultService
+    : invoice.transactions?.type_name || t.defaultService;
+  const entityName = en
+    ? invoice.transactions?.gov_entity_en || invoice.transactions?.gov_entity || t.dash
+    : invoice.transactions?.gov_entity || t.dash;
+  const statusLabel = en
+    ? (INVOICE_STATUS_EN[invoice.status] ?? invoice.status)
+    : (INVOICE_STATUS[invoice.status] ?? invoice.status);
+  const methodLabel = (m: string) =>
+    en ? (PAYMENT_METHODS_EN[m] ?? m) : (PAYMENT_METHODS[m] ?? m);
+
+  const amt = (v: number | string | null | undefined) =>
+    en
+      ? `${Number(v ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED`
+      : money(v);
+
+  type GroupRow = { service: string; gov_fee: number; office_fee: number };
+  const groups: { entity: string; rows: GroupRow[] }[] = [];
+  for (const it of items) {
+    const entity =
+      (en ? it.gov_entity_en || it.gov_entity : it.gov_entity) || t.dash;
+    const service =
+      (en ? it.type_name_en || it.type_name : it.type_name) || t.defaultService;
+    let g = groups.find((x) => x.entity === entity);
+    if (!g) {
+      g = { entity, rows: [] };
+      groups.push(g);
+    }
+    g.rows.push({
+      service,
+      gov_fee: Number(it.gov_fee) || 0,
+      office_fee: Number(it.office_fee) || 0,
+    });
+  }
+
+
+  const rawLogo = office?.logo_url?.trim() || "";
+  const usableLogo =
+    /^(https?:\/\/|\/)/i.test(rawLogo) && !/drive\.google\.com|docs\.google\.com|dropbox\.com\/s\//i.test(rawLogo);
+  const logoSrc = usableLogo ? rawLogo : officeLogo.url;
+
+  type DisplayRow =
+    | { kind: "entity"; index: number; entity: string }
+    | { kind: "fee"; index: string; label: string; amount: number };
+  const displayRows: DisplayRow[] = [];
+  if (groups.length > 0) {
+    groups.forEach((group, groupIndex) => {
+      displayRows.push({ kind: "entity", index: groupIndex + 1, entity: group.entity });
+      group.rows.forEach((row, rowIndex) => {
+        const index = `${groupIndex + 1}.${rowIndex + 1}`;
+        displayRows.push({ kind: "fee", index, label: `${row.service} — ${t.officeLine}`, amount: row.office_fee });
+        if (Number(row.gov_fee) > 0) {
+          displayRows.push({ kind: "fee", index: "", label: `${row.service} — ${t.govLine}`, amount: row.gov_fee });
+        }
+      });
+    });
+  } else {
+    displayRows.push(
+      { kind: "fee", index: "1", label: t.govLine, amount: invoice.gov_fees },
+      { kind: "fee", index: "2", label: `${t.officeLine} — ${serviceName}`, amount: invoice.office_fees },
+    );
+  }
+
+  const rowLimit = 10;
+  const itemPages = Array.from(
+    { length: Math.max(1, Math.ceil(displayRows.length / rowLimit)) },
+    (_, index) => displayRows.slice(index * rowLimit, (index + 1) * rowLimit),
+  );
+
+  const header = (
+    <div className="pi-repeat-header">
+      
+      <header className="pi-head">
+        <div className="pi-office">
+          <h1 className="pi-name">{name}</h1>
+          {subName && <p className="pi-name-en">{subName}</p>}
+          <p className="pi-meta">
+            {office?.phone && <span>{t.phone}: {office.phone}</span>}
+            {office?.address && <span>{office.address}</span>}
+            {office?.email && <span>{office.email}</span>}
+            {office?.website && <span>{office.website}</span>}
+            {office?.license_no && <span>{t.license}: {office.license_no}</span>}
+            {office?.trn && <span>{t.trn}: {office.trn}</span>}
+          </p>
+        </div>
+        <img src={logoSrc} alt={name} className="pi-logo" />
+      </header>
+      <div className="pi-doc">
+        <p className="pi-doc-title">{t.docTitle}</p>
+        <p className="pi-doc-title-en">{t.docTitleAlt}</p>
+        <table className="pi-doc-table"><tbody>
+          <tr><th>{t.invoiceNo}</th><td className="num">{invoice.invoice_no}</td></tr>
+          <tr><th>{t.issueDate}</th><td className="num">{dateAr(invoice.issue_date)}</td></tr>
+          <tr><th>{t.dueDate}</th><td className="num">{dateAr(invoice.due_date)}</td></tr>
+          <tr><th>{t.status}</th><td>{statusLabel}</td></tr>
+        </tbody></table>
+      </div>
+      <div className="pi-rule" />
+    </div>
+  );
+
+  const signBlock = (
+    <div className="pi-sign">
+      <div className="pi-sign-office">
+        <img src={officeStamp.url} alt="" className="pi-stamp pi-stamp-sign" />
+        <span>{t.officeSign}</span>
+      </div>
+      <div>
+        <span>{t.clientSign}</span>
+      </div>
+    </div>
+  );
+
+  const footer = (isLast: boolean) => (
+    <footer className="pi-footer pi-repeat-footer">
+      {isLast ? signBlock : (
+        <div className="pi-stamp-slot">
+          <img src={officeStamp.url} alt="" className="pi-stamp" />
+        </div>
+      )}
+      <div className="pi-notebox">
+        {office?.invoice_footer && <p className="pi-fine">{office.invoice_footer}</p>}
+        <p className="pi-fine">{t.fine}</p>
+        <p className="pi-fine pi-issued">{t.issuedBy(name)}</p>
+      </div>
+    </footer>
+  );
 
   if (!mounted) return null;
 
   return createPortal(
-    <div className="print-invoice hidden" aria-hidden>
-
-      <header className="pi-head">
-        <div className="pi-office">
-          {office?.logo_url ? (
-            <img src={office.logo_url} alt={name} className="pi-logo" />
-          ) : null}
-          <div>
-            <h1 className="pi-name">{name}</h1>
-            {office?.legal_name_en && <p className="pi-name-en">{office.legal_name_en}</p>}
-            <p className="pi-meta">
-              {office?.address ? <span>{office.address}</span> : null}
-              {office?.phone ? <span>هاتف: {office.phone}</span> : null}
-              {office?.email ? <span>{office.email}</span> : null}
-              {office?.website ? <span>{office.website}</span> : null}
-            </p>
-            <p className="pi-meta">
-              {office?.license_no ? <span>رقم الرخصة: {office.license_no}</span> : null}
-              {office?.trn ? <span>الرقم الضريبي (TRN): {office.trn}</span> : null}
-            </p>
-          </div>
-        </div>
-        <div className="pi-doc">
-          <p className="pi-doc-title">فاتورة ضريبية</p>
-          <p className="pi-doc-title-en">TAX INVOICE</p>
-          <table className="pi-doc-table">
-            <tbody>
-              <tr>
-                <th>رقم الفاتورة</th>
-                <td className="num">{invoice.invoice_no}</td>
-              </tr>
-              <tr>
-                <th>تاريخ الإصدار</th>
-                <td className="num">{dateAr(invoice.issue_date)}</td>
-              </tr>
-              <tr>
-                <th>تاريخ الاستحقاق</th>
-                <td className="num">{dateAr(invoice.due_date)}</td>
-              </tr>
-              <tr>
-                <th>الحالة</th>
-                <td>{INVOICE_STATUS[invoice.status] ?? invoice.status}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </header>
-
-      <section className="pi-parties">
+    <div className="print-invoice hidden" aria-hidden dir={en ? "ltr" : "rtl"} lang={lang}>
+      {itemPages.map((pageRows, pageIndex) => {
+        const firstPage = pageIndex === 0;
+        const lastPage = pageIndex === itemPages.length - 1;
+        return <section className="pi-sheet" key={`page-${pageIndex}`}>
+          {header}
+          <main className="pi-content">
+      {firstPage && <section className="pi-parties">
         <div>
-          <h2>بيانات العميل</h2>
-          <p>{invoice.clients?.name ?? "—"}</p>
+          <h2>{t.client}</h2>
+          <p>{invoice.clients?.name ?? t.dash}</p>
           {invoice.clients?.phone && <p className="num">{invoice.clients.phone}</p>}
         </div>
         <div>
-          <h2>بيانات المعاملة</h2>
-          <p className="num">{invoice.transactions?.ref_no ?? "—"}</p>
-          <p>{invoice.transactions?.type_name ?? "—"}</p>
-          <p>{invoice.transactions?.gov_entity ?? "—"}</p>
+          <h2>{t.trx}</h2>
+          <p className="num">{invoice.transactions?.ref_no ?? t.dash}</p>
+          <p>{serviceName}</p>
+          <p>{entityName}</p>
         </div>
-      </section>
-
+      </section>}
       <table className="pi-table">
         <thead>
           <tr>
-            <th>#</th>
-            <th>البيان</th>
-            <th>المبلغ</th>
+            <th>{t.idx}</th>
+            <th>{t.item}</th>
+            <th>{t.amount}</th>
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td className="num">1</td>
-            <td>رسوم حكومية (أمانات تُدفع للجهات الحكومية)</td>
-            <td className="num">{money(invoice.gov_fees)}</td>
-          </tr>
-          <tr>
-            <td className="num">2</td>
-            <td>أتعاب المكتب — {invoice.transactions?.type_name ?? "خدمة تخليص"}</td>
-            <td className="num">{money(invoice.office_fees)}</td>
-          </tr>
+          {pageRows.map((row, rowIndex) => row.kind === "entity" ? (
+            <tr key={`entity-${pageIndex}-${rowIndex}`}><td className="num">{row.index}</td><td colSpan={2} className="pi-entity-name">{row.entity}</td></tr>
+          ) : (
+            <tr key={`fee-${pageIndex}-${rowIndex}`}><td className="num">{row.index}</td><td className="pi-fee-label">{row.label}</td><td className="num">{amt(row.amount)}</td></tr>
+          ))}
         </tbody>
       </table>
-
+      {lastPage && <>
       <div className="pi-totals">
         <table>
           <tbody>
             <tr>
-              <th>المجموع قبل الخصم</th>
-              <td className="num">{money(Number(invoice.gov_fees) + Number(invoice.office_fees))}</td>
+              <th>{t.subtotal}</th>
+              <td className="num">
+                {amt(Number(invoice.gov_fees) + Number(invoice.office_fees))}
+              </td>
             </tr>
             <tr>
-              <th>الخصم</th>
-              <td className="num">{money(invoice.discount)}</td>
+              <th>{t.discount}</th>
+              <td className="num">{amt(invoice.discount)}</td>
             </tr>
             <tr>
-              <th>ضريبة القيمة المضافة ({Number(invoice.vat_rate ?? 0)}%)</th>
-              <td className="num">{money(invoice.vat_amount)}</td>
+              <th>
+                {t.vat} ({Number(invoice.vat_rate ?? 0)}%)
+              </th>
+              <td className="num">{amt(invoice.vat_amount)}</td>
             </tr>
             <tr className="pi-grand">
-              <th>الإجمالي المستحق</th>
-              <td className="num">{money(invoice.total)}</td>
+              <th>{t.grand}</th>
+              <td className="num">{amt(invoice.total)}</td>
             </tr>
             <tr>
-              <th>المدفوع</th>
-              <td className="num">{money(invoice.paid)}</td>
+              <th>{t.paid}</th>
+              <td className="num">{amt(invoice.paid)}</td>
             </tr>
             <tr className="pi-due">
-              <th>المتبقي</th>
-              <td className="num">{money(remaining)}</td>
+              <th>{t.due}</th>
+              <td className="num">{amt(remaining)}</td>
             </tr>
           </tbody>
         </table>
       </div>
-
       {payments.length > 0 && (
         <>
-          <h2 className="pi-section">سجل الدفعات</h2>
+          <h2 className="pi-section">{t.paymentsTitle}</h2>
           <table className="pi-table">
             <thead>
               <tr>
-                <th>التاريخ</th>
-                <th>المبلغ</th>
-                <th>الطريقة</th>
-                <th>المرجع</th>
+                <th>{t.date}</th>
+                <th>{t.amount}</th>
+                <th>{t.method}</th>
+                <th>{t.reference}</th>
               </tr>
             </thead>
             <tbody>
               {payments.map((p) => (
                 <tr key={p.id}>
                   <td className="num">{dateAr(p.paid_at)}</td>
-                  <td className="num">{money(p.amount)}</td>
-                  <td>{PAYMENT_METHODS[p.method] ?? p.method}</td>
-                  <td className="num">{p.reference ?? "—"}</td>
+                  <td className="num">{amt(p.amount)}</td>
+                  <td>{methodLabel(p.method)}</td>
+                  <td className="num">{p.reference ?? t.dash}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </>
       )}
-
-      {invoice.notes && <p className="pi-notes">ملاحظات: {invoice.notes}</p>}
-
-      <footer className="pi-footer">
-        {office?.invoice_footer && <p>{office.invoice_footer}</p>}
-        <p className="pi-fine">
-          الرسوم الحكومية تُحصَّل لصالح الجهات الحكومية ولا تُحتسب ضمن دخل المكتب، ولا تخضع لضريبة
-          القيمة المضافة.
+      {invoice.notes && (
+        <p className="pi-notes">
+          {t.notes}: {invoice.notes}
         </p>
-        <div className="pi-sign">
-          <div>
-            <span>توقيع المكتب</span>
-          </div>
-          <div>
-            <span>توقيع العميل</span>
-          </div>
-        </div>
-        <p className="pi-fine">هذه الفاتورة صادرة إلكترونياً من {name}</p>
-      </footer>
+      )}
+      </>}
+          </main>
+          {footer(lastPage)}
+        </section>;
+      })}
     </div>,
+
     document.body,
   );
 }

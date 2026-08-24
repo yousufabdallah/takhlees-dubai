@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { FileSpreadsheet, Plus, Printer } from "lucide-react";
+import { FileSpreadsheet, Languages, Plus, Printer } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -10,12 +10,14 @@ import {
   dateAr,
   INVOICE_STATUS,
   INVOICE_STATUS_TONE,
+  localName,
   money,
   PAYMENT_METHODS,
 } from "@/lib/domain";
 import { exportExcel } from "@/lib/excel";
+import { useI18n } from "@/lib/i18n";
 import { useOffice } from "@/lib/office";
-import { InvoicePrint } from "@/components/InvoicePrint";
+import { InvoicePrint, type InvoiceLang, type PrintItem } from "@/components/InvoicePrint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,8 +67,15 @@ type Invoice = {
   paid: number;
   status: string;
   notes: string | null;
+  transaction_id: string | null;
   clients: { id: string; name: string; phone: string | null } | null;
-  transactions: { ref_no: string; type_name: string; gov_entity: string | null } | null;
+  transactions: {
+    ref_no: string;
+    type_name: string;
+    type_name_en: string | null;
+    gov_entity: string | null;
+    gov_entity_en: string | null;
+  } | null;
 };
 
 type Payment = {
@@ -83,6 +92,7 @@ function InvoiceDetail() {
   const { id } = Route.useParams();
   const invalidate = useInvalidate();
   const [open, setOpen] = useState(false);
+  const [printLang, setPrintLang] = useState<InvoiceLang>("ar");
   const [form, setForm] = useState({
     amount: "",
     method: "cash",
@@ -96,11 +106,22 @@ function InvoiceDetail() {
     supabase
       .from("invoices")
       .select(
-        "id, invoice_no, issue_date, due_date, gov_fees, office_fees, discount, vat_rate, vat_amount, total, paid, status, notes, clients(id, name, phone), transactions(ref_no, type_name, gov_entity)",
+        "id, invoice_no, issue_date, due_date, gov_fees, office_fees, discount, vat_rate, vat_amount, total, paid, status, notes, transaction_id, clients(id, name, phone), transactions(ref_no, type_name, type_name_en, gov_entity, gov_entity_en)",
       )
       .eq("id", id)
       .single(),
   );
+
+  const trxId = inv.data?.transaction_id ?? null;
+  const trxItems = useSb<PrintItem[]>(["trx-items", trxId ?? "none"], () =>
+    supabase
+      .from("transaction_items")
+      .select("id, gov_entity, gov_entity_en, type_name, type_name_en, gov_fee, office_fee")
+      .eq("transaction_id", trxId ?? "00000000-0000-0000-0000-000000000000")
+      .order("sort_order"),
+  );
+
+
 
   const payments = useSb<Payment[]>(["payments", id], () =>
     supabase
@@ -115,6 +136,7 @@ function InvoiceDetail() {
   );
 
   const office = useOffice();
+  const { lang } = useI18n();
   const i = inv.data;
   const remaining = Number(i?.total ?? 0) - Number(i?.paid ?? 0);
 
@@ -156,8 +178,8 @@ function InvoiceDetail() {
           ["العميل", i.clients?.name ?? "—"],
           ["هاتف العميل", i.clients?.phone ?? "—"],
           ["المعاملة", i.transactions?.ref_no ?? "—"],
-          ["الخدمة", i.transactions?.type_name ?? "—"],
-          ["الجهة الحكومية", i.transactions?.gov_entity ?? "—"],
+          ["الخدمة", localName(lang, i.transactions?.type_name, i.transactions?.type_name_en)],
+          ["الجهة الحكومية", localName(lang, i.transactions?.gov_entity, i.transactions?.gov_entity_en)],
           ["تاريخ الإصدار", dateAr(i.issue_date)],
           ["تاريخ الاستحقاق", dateAr(i.due_date)],
           ["الحالة", INVOICE_STATUS[i.status] ?? i.status],
@@ -193,8 +215,15 @@ function InvoiceDetail() {
   return (
     <>
       {i && (
-        <InvoicePrint office={office.data} invoice={i} payments={payments.data ?? []} />
+        <InvoicePrint
+          office={office.data}
+          invoice={i}
+          payments={payments.data ?? []}
+          items={trxItems.data ?? []}
+          lang={printLang}
+        />
       )}
+
       <PageHeader
         title={`فاتورة ${i?.invoice_no ?? ""}`}
         subtitle={i?.clients?.name ?? ""}
@@ -203,6 +232,16 @@ function InvoiceDetail() {
             <Button variant="secondary" onClick={exportXlsx}>
               <FileSpreadsheet className="size-4" /> تصدير إكسل
             </Button>
+            <Select value={printLang} onValueChange={(v) => setPrintLang(v as InvoiceLang)}>
+              <SelectTrigger className="w-36">
+                <Languages className="size-4" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ar">فاتورة بالعربية</SelectItem>
+                <SelectItem value="en">Invoice in English</SelectItem>
+              </SelectContent>
+            </Select>
             <Button variant="secondary" onClick={() => window.print()}>
               <Printer className="size-4" /> طباعة
             </Button>
@@ -314,8 +353,8 @@ function InvoiceDetail() {
             <Line label="تاريخ الإصدار">{dateAr(i?.issue_date)}</Line>
             <Line label="تاريخ الاستحقاق">{dateAr(i?.due_date)}</Line>
             <Line label="المعاملة">{i?.transactions?.ref_no ?? "—"}</Line>
-            <Line label="الخدمة">{i?.transactions?.type_name ?? "—"}</Line>
-            <Line label="الجهة الحكومية">{i?.transactions?.gov_entity ?? "—"}</Line>
+            <Line label="الخدمة">{localName(lang, i?.transactions?.type_name, i?.transactions?.type_name_en)}</Line>
+            <Line label="الجهة الحكومية">{localName(lang, i?.transactions?.gov_entity, i?.transactions?.gov_entity_en)}</Line>
             <Line label="هاتف العميل">{i?.clients?.phone ?? "—"}</Line>
           </dl>
           {i?.clients && (

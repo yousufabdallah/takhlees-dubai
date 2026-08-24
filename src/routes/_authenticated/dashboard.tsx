@@ -11,7 +11,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useSb } from "@/lib/queries";
 import { Badge, PageHeader, StatCard, TableWrap, Td, Th, EmptyState } from "@/components/ui-kit";
-import { dateAr, money, TRX_STATUS, TRX_STATUS_TONE } from "@/lib/domain";
+import { dateAr, localName, money, TRX_STATUS, TRX_STATUS_TONE } from "@/lib/domain";
+import { useI18n } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -29,6 +30,7 @@ type Trx = {
   id: string;
   ref_no: string;
   type_name: string;
+  type_name_en: string | null;
   status: string;
   gov_fee: number;
   office_fee: number;
@@ -37,10 +39,12 @@ type Trx = {
 };
 
 function Dashboard() {
+  const { t, lang } = useI18n();
+
   const trx = useSb<Trx[]>(["dash-trx"], () =>
     supabase
       .from("transactions")
-      .select("id, ref_no, type_name, status, gov_fee, office_fee, opened_at, clients(name)")
+      .select("id, ref_no, type_name, type_name_en, status, gov_fee, office_fee, opened_at, clients(name)")
       .order("created_at", { ascending: false }),
   );
   const invoices = useSb<{ total: number; paid: number; status: string; gov_fees: number }[]>(
@@ -69,70 +73,70 @@ function Dashboard() {
   const cash = totalPaid - govPaidThrough - totalExpenses;
   const openCount = list.filter((t) => !["completed", "cancelled"].includes(t.status)).length;
 
+  const dateFmt = lang === "ar" ? dateAr : (d: string) => new Date(d).toLocaleDateString("en-GB");
 
   return (
     <>
       <PageHeader
-        title="لوحة التحكم"
-        subtitle="ملخص أداء المكتب: المعاملات، الإيرادات، المستحقات والصندوق"
+        title={t("dashboard")}
+        subtitle={t("dashboardSubtitle")}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="أتعاب المكتب (دخل فعلي)"
+          label={t("officeRevenue")}
           value={money(officeRevenue)}
-          hint="لا تشمل الرسوم الحكومية"
+          hint={t("officeRevenueHint")}
           icon={<TrendingUp className="size-4" />}
           tone="success"
         />
         <StatCard
-          label="رسوم حكومية محصّلة (أمانات)"
+          label={t("govFeesCollected")}
           value={money(govCollected)}
-          hint="مبالغ للجهات الحكومية وليست دخلاً"
+          hint={t("govFeesCollectedHint")}
           icon={<Landmark className="size-4" />}
           tone="gov"
         />
         <StatCard
-          label="مستحقات على العملاء"
+          label={t("receivables")}
           value={money(receivables)}
-          hint="فواتير غير مسددة بالكامل"
+          hint={t("receivablesHint")}
           icon={<Wallet className="size-4" />}
           tone="warning"
         />
         <StatCard
-          label="صافي النقد (بدون الرسوم الحكومية)"
+          label={t("netCash")}
           value={money(cash)}
-          hint="الرسوم الحكومية تُدفع مباشرة للجهات ولا تدخل الصندوق"
+          hint={t("netCashHint")}
           icon={<Banknote className="size-4" />}
         />
-
       </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="إجمالي المعاملات"
+          label={t("totalTransactions")}
           value={String(list.length)}
           icon={<FileStack className="size-4" />}
         />
-        <StatCard label="معاملات مفتوحة" value={String(openCount)} tone="warning" />
+        <StatCard label={t("openTransactions")} value={String(openCount)} tone="warning" />
         <StatCard
-          label="عدد العملاء"
+          label={t("totalClients")}
           value={String((clients.data ?? []).length)}
           icon={<UsersIcon className="size-4" />}
         />
-        <StatCard label="إجمالي المصروفات" value={money(totalExpenses)} tone="destructive" />
+        <StatCard label={t("totalExpenses")} value={money(totalExpenses)} tone="destructive" />
       </div>
 
-      <h2 className="mt-8 mb-3 text-lg font-bold">أحدث المعاملات</h2>
+      <h2 className="mt-8 mb-3 text-lg font-bold">{t("latestTransactions")}</h2>
       <TableWrap>
         <thead>
           <tr>
-            <Th>الرقم المرجعي</Th>
-            <Th>العميل</Th>
-            <Th>نوع المعاملة</Th>
-            <Th>التاريخ</Th>
-            <Th>الحالة</Th>
-            <Th>أتعاب المكتب</Th>
+            <Th>{t("refNo")}</Th>
+            <Th>{t("client")}</Th>
+            <Th>{t("transactionType")}</Th>
+            <Th>{t("date")}</Th>
+            <Th>{t("status")}</Th>
+            <Th>{t("officeFee")}</Th>
           </tr>
         </thead>
         <tbody>
@@ -140,8 +144,8 @@ function Dashboard() {
             <tr key={t.id} className="hover:bg-muted/40">
               <Td className="num font-medium">{t.ref_no}</Td>
               <Td>{t.clients?.name ?? "—"}</Td>
-              <Td>{t.type_name}</Td>
-              <Td className="num">{dateAr(t.opened_at)}</Td>
+              <Td>{localName(lang, t.type_name, t.type_name_en)}</Td>
+              <Td className="num">{dateFmt(t.opened_at)}</Td>
               <Td>
                 <Badge label={TRX_STATUS[t.status] ?? t.status} tone={TRX_STATUS_TONE[t.status]} />
               </Td>
@@ -152,15 +156,15 @@ function Dashboard() {
       </TableWrap>
       {list.length === 0 && (
         <div className="surface mt-3">
-          <EmptyState text="لا توجد معاملات بعد — ابدأ بإضافة عميل ثم معاملة." />
+          <EmptyState text={t("noTransactionsYet")} />
         </div>
       )}
       <div className="mt-4 flex gap-3">
         <Link to="/transactions" className="text-sm font-medium text-primary hover:underline">
-          عرض كل المعاملات
+          {t("viewAllTransactions")}
         </Link>
         <Link to="/clients" className="text-sm font-medium text-primary hover:underline">
-          إدارة العملاء
+          {t("manageClients")}
         </Link>
       </div>
     </>

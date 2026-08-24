@@ -278,6 +278,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          name_en: string | null
           notes: string | null
           phone: string | null
           updated_at: string
@@ -289,6 +290,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          name_en?: string | null
           notes?: string | null
           phone?: string | null
           updated_at?: string
@@ -300,6 +302,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          name_en?: string | null
           notes?: string | null
           phone?: string | null
           updated_at?: string
@@ -634,6 +637,73 @@ export type Database = {
         }
         Relationships: []
       }
+      transaction_items: {
+        Row: {
+          created_at: string
+          entity_id: string | null
+          gov_entity: string | null
+          gov_entity_en: string | null
+          gov_fee: number
+          id: string
+          office_fee: number
+          sort_order: number
+          transaction_id: string
+          type_id: string | null
+          type_name: string
+          type_name_en: string | null
+        }
+        Insert: {
+          created_at?: string
+          entity_id?: string | null
+          gov_entity?: string | null
+          gov_entity_en?: string | null
+          gov_fee?: number
+          id?: string
+          office_fee?: number
+          sort_order?: number
+          transaction_id: string
+          type_id?: string | null
+          type_name: string
+          type_name_en?: string | null
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string | null
+          gov_entity?: string | null
+          gov_entity_en?: string | null
+          gov_fee?: number
+          id?: string
+          office_fee?: number
+          sort_order?: number
+          transaction_id?: string
+          type_id?: string | null
+          type_name?: string
+          type_name_en?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transaction_items_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "gov_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_items_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_items_type_id_fkey"
+            columns: ["type_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transaction_types: {
         Row: {
           active: boolean
@@ -644,6 +714,7 @@ export type Database = {
           gov_entity: string | null
           id: string
           name: string
+          name_en: string | null
         }
         Insert: {
           active?: boolean
@@ -654,6 +725,7 @@ export type Database = {
           gov_entity?: string | null
           id?: string
           name: string
+          name_en?: string | null
         }
         Update: {
           active?: boolean
@@ -664,6 +736,7 @@ export type Database = {
           gov_entity?: string | null
           id?: string
           name?: string
+          name_en?: string | null
         }
         Relationships: [
           {
@@ -684,6 +757,7 @@ export type Database = {
           discount: number
           employee_id: string | null
           gov_entity: string | null
+          gov_entity_en: string | null
           gov_fee: number
           gov_fee_paid: boolean
           gov_fee_paid_at: string | null
@@ -696,6 +770,7 @@ export type Database = {
           status: string
           type_id: string | null
           type_name: string
+          type_name_en: string | null
           updated_at: string
           vat_rate: number
         }
@@ -707,6 +782,7 @@ export type Database = {
           discount?: number
           employee_id?: string | null
           gov_entity?: string | null
+          gov_entity_en?: string | null
           gov_fee?: number
           gov_fee_paid?: boolean
           gov_fee_paid_at?: string | null
@@ -719,6 +795,7 @@ export type Database = {
           status?: string
           type_id?: string | null
           type_name: string
+          type_name_en?: string | null
           updated_at?: string
           vat_rate?: number
         }
@@ -730,6 +807,7 @@ export type Database = {
           discount?: number
           employee_id?: string | null
           gov_entity?: string | null
+          gov_entity_en?: string | null
           gov_fee?: number
           gov_fee_paid?: boolean
           gov_fee_paid_at?: string | null
@@ -742,6 +820,7 @@ export type Database = {
           status?: string
           type_id?: string | null
           type_name?: string
+          type_name_en?: string | null
           updated_at?: string
           vat_rate?: number
         }

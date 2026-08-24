@@ -9,7 +9,8 @@ import { useRole } from "@/hooks/useRole";
 import { canManageCatalog } from "@/lib/permissions";
 
 import { Badge, EmptyState, PageHeader, StatCard, TableWrap, Td, Th } from "@/components/ui-kit";
-import { money } from "@/lib/domain";
+import { localName, money } from "@/lib/domain";
+import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,6 +48,7 @@ export const Route = createFileRoute("/_authenticated/services")({
 type Service = {
   id: string;
   name: string;
+  name_en: string | null;
   gov_entity: string | null;
   entity_id: string | null;
   default_gov_fee: number;
@@ -54,11 +56,12 @@ type Service = {
   active: boolean;
 };
 
-type Entity = { id: string; name: string; active: boolean };
+type Entity = { id: string; name: string; name_en: string | null; active: boolean };
 
 const EMPTY = {
   id: "",
   name: "",
+  name_en: "",
   entity_id: "",
   default_gov_fee: "0",
   default_office_fee: "0",
@@ -67,6 +70,7 @@ const EMPTY = {
 
 function ServicesPage() {
   const invalidate = useInvalidate();
+  const { lang } = useI18n();
   const { role } = useRole();
   const canManage = canManageCatalog(role);
   const [open, setOpen] = useState(false);
@@ -75,12 +79,12 @@ function ServicesPage() {
 
 
   const entities = useSb<Entity[]>(["gov-entities"], () =>
-    supabase.from("gov_entities").select("id, name, active").order("name"),
+    supabase.from("gov_entities").select("id, name, name_en, active").order("name"),
   );
   const services = useSb<Service[]>(["services"], () =>
     supabase
       .from("transaction_types")
-      .select("id, name, gov_entity, entity_id, default_gov_fee, default_office_fee, active")
+      .select("id, name, name_en, gov_entity, entity_id, default_gov_fee, default_office_fee, active")
       .order("name"),
   );
 
@@ -105,6 +109,7 @@ function ServicesPage() {
     const entity = entityList.find((e) => e.id === form.entity_id);
     const payload = {
       name: form.name.trim(),
+      name_en: form.name_en.trim() || null,
       entity_id: form.entity_id,
       gov_entity: entity?.name ?? null,
       default_gov_fee: Number(form.default_gov_fee),
@@ -138,6 +143,7 @@ function ServicesPage() {
     setForm({
       id: s.id,
       name: s.name,
+      name_en: s.name_en ?? "",
       entity_id: s.entity_id ?? "",
       default_gov_fee: String(s.default_gov_fee),
       default_office_fee: String(s.default_office_fee),
@@ -189,7 +195,7 @@ function ServicesPage() {
             <SelectItem value="all">كل الجهات</SelectItem>
             {entityList.map((e) => (
               <SelectItem key={e.id} value={e.id}>
-                {e.name}
+                {localName(lang, e.name, e.name_en)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -210,10 +216,13 @@ function ServicesPage() {
         {groups.map((g) => (
           <section key={g.entity.id}>
             <div className="mb-2 flex items-center justify-between gap-3">
-              <h2 className="font-bold">{g.entity.name}</h2>
+              <h2 className="font-bold" dir={lang === "en" ? "ltr" : "rtl"}>
+                {localName(lang, g.entity.name, g.entity.name_en)}
+              </h2>
               <span className="text-xs text-muted-foreground">{g.items.length} خدمة</span>
             </div>
             <ServiceTable
+              lang={lang}
               items={g.items}
               canManage={canManage}
               onEdit={edit}
@@ -226,6 +235,7 @@ function ServicesPage() {
           <section>
             <h2 className="mb-2 font-bold">خدمات بدون جهة</h2>
             <ServiceTable
+              lang={lang}
               items={orphans}
               canManage={canManage}
               onEdit={edit}
@@ -254,7 +264,7 @@ function ServicesPage() {
                 <SelectContent>
                   {entityList.map((e) => (
                     <SelectItem key={e.id} value={e.id}>
-                      {e.name}
+                      {localName(lang, e.name, e.name_en)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -266,6 +276,15 @@ function ServicesPage() {
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="مثال: تجديد رخصة تجارية"
+              />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>اسم الخدمة بالإنجليزية</Label>
+              <Input
+                dir="ltr"
+                value={form.name_en}
+                onChange={(e) => setForm({ ...form, name_en: e.target.value })}
+                placeholder="e.g. Trade License Renewal"
               />
             </div>
             <div className="space-y-1.5">
@@ -313,11 +332,13 @@ function ServicesPage() {
 }
 
 function ServiceTable({
+  lang,
   items,
   canManage,
   onEdit,
   onDelete,
 }: {
+  lang: "ar" | "en";
   items: Service[];
   canManage: boolean;
   onEdit: (s: Service) => void;
@@ -345,7 +366,9 @@ function ServiceTable({
       <tbody>
         {items.map((s) => (
           <tr key={s.id} className="hover:bg-muted/40">
-            <Td className="font-medium">{s.name}</Td>
+            <Td className="font-medium">
+              <div dir={lang === "en" ? "ltr" : "rtl"}>{localName(lang, s.name, s.name_en)}</div>
+            </Td>
             <Td className="num">{money(s.default_gov_fee)}</Td>
             <Td className="num">{money(s.default_office_fee)}</Td>
             <Td className="num font-semibold">

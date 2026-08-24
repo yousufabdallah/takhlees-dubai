@@ -167,11 +167,14 @@
 @media print {
   @page {
     size: A4;
-    margin: 12mm;
+    margin: 0;
   }
   html,
   body {
     background: #fff !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
     height: auto !important;
     overflow: visible !important;
   }
@@ -180,99 +183,292 @@
   }
   .print-invoice {
     display: block !important;
-    width: 100%;
-    color: #000;
-    font-size: 12px;
+    width: 100% !important;
+    margin: 0 !important;
+    border: 0 !important;
+    padding: 0 !important;
+    position: static !important;
   }
   .print-invoice table {
     page-break-inside: auto;
+    break-inside: auto;
   }
-  .print-invoice tr {
+  .print-invoice .pi-table tr,
+  .print-invoice .pi-totals tr,
+  .print-invoice .pi-doc-table tr {
     page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .print-invoice .pi-page > thead {
+    display: table-header-group;
+  }
+  .print-invoice .pi-page > tfoot {
+    display: table-footer-group;
+  }
+  .print-invoice .pi-page > thead > tr,
+  .print-invoice .pi-page > tfoot > tr,
+  .print-invoice .pi-page > thead > tr > td,
+  .print-invoice .pi-page > tfoot > tr > td {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .print-invoice .pi-page > tbody > .pi-content-row,
+  .print-invoice .pi-page > tbody > .pi-content-row > td {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+  .print-invoice .pi-sheet {
+    width: 210mm;
+    height: 296.5mm;
+    min-height: 296.5mm;
+    max-height: 296.5mm;
+    margin: 0;
+    /* Reserve a fixed footer zone plus the requested 30mm clear space. */
+    padding: 5mm 10mm 86mm;
+    border: 0 !important;
+    box-sizing: border-box;
+    overflow: hidden;
+    position: relative;
+    display: block;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    break-after: page;
+    page-break-after: always;
+  }
+  .print-invoice .pi-sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+  .print-invoice .pi-datestamp {
+    margin-top: 0;
+  }
+  .print-invoice .pi-head {
+    max-height: 27mm;
+  }
+  .print-invoice .pi-logo {
+    height: 20mm;
+  }
+  .print-invoice .pi-doc {
+    margin-top: 1mm;
+  }
+  .print-invoice .pi-doc-table th,
+  .print-invoice .pi-doc-table td {
+    padding-block: 1mm;
+  }
+  .print-invoice .pi-rule {
+    margin-top: 2mm;
+  }
+  .print-invoice .pi-repeat-footer.pi-footer {
+    position: absolute;
+    inset-inline: 10mm;
+    bottom: 30mm;
+    height: 52mm;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    overflow: visible;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .print-invoice .pi-stamp-slot {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 17mm;
+    height: 34mm;
+    padding: 0;
+    align-items: center;
+  }
+  .print-invoice .pi-content {
+    overflow: hidden;
+  }
+  .print-invoice .pi-notebox {
+    height: 17mm;
+    box-sizing: border-box;
+    padding: 1.5mm 4mm;
+    line-height: 1.25;
+    font-size: 8.4px;
+    overflow: hidden;
+  }
+  .print-invoice .pi-fine {
+    margin: 0.6mm 0;
+  }
+  .print-invoice .pi-sign {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 18mm;
+    height: 25mm;
+    margin: 0;
+    align-items: end;
+  }
+  .print-invoice .pi-totals {
+    margin-top: 2mm;
+  }
+  .print-invoice .pi-parties {
+    margin-block: 1.5mm;
+  }
+
+
+  .print-invoice img {
+    display: inline-block !important;
+    visibility: visible !important;
+  }
+  .print-invoice,
+  .print-invoice * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
 
+.print-invoice {
+  --pi-navy: #16264a;
+  --pi-gold: #b8965a;
+  --pi-gold-soft: #e6d8bd;
+  --pi-ink: #1f2937;
+  width: 100%;
+  color: var(--pi-ink);
+  font-size: 10.6px;
+  border: 7px solid var(--pi-navy);
+  padding: 9mm 8mm 0;
+  position: relative;
+}
 
+.print-invoice .pi-sheet {
+  min-height: 279mm;
+  border: 7px solid var(--pi-navy);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+.print-invoice .pi-content {
+  min-height: 0;
+  overflow: hidden;
+}
+.print-invoice .pi-issued {
+  text-align: center;
+  border-top: 1px solid var(--pi-gold-soft);
+  padding-top: 1.2mm;
+}
+.print-invoice .pi-entity-name {
+  font-weight: 700;
+}
+.print-invoice .pi-fee-label {
+  padding-inline-start: 18px;
+}
+
+/* رأس الفاتورة */
+.print-invoice .pi-datestamp {
+  text-align: end;
+  font-size: 9.2px;
+  color: #475569;
+  margin: 0 0 6px;
+}
 .print-invoice .pi-head {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  border-bottom: 3px solid #0f172a;
-  padding-bottom: 12px;
+  align-items: flex-start;
+  gap: 18px;
+  flex-direction: row-reverse;
 }
 .print-invoice .pi-office {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
+  display: block;
+  text-align: start;
 }
 .print-invoice .pi-logo {
-  height: 56px;
+  height: 78px;
   object-fit: contain;
 }
 .print-invoice .pi-name {
-  font-size: 18px;
+  font-size: 16.7px;
   font-weight: 800;
   margin: 0;
+  color: var(--pi-navy);
 }
 .print-invoice .pi-name-en {
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  margin: 2px 0 0;
+  font-size: 10.1px;
+  letter-spacing: 0.02em;
+  margin: 2px 0 6px;
+  color: #475569;
 }
 .print-invoice .pi-meta {
-  margin: 4px 0 0;
-  font-size: 10.5px;
+  margin: 2px 0 0;
+  font-size: 9.2px;
   color: #334155;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
 }
-.print-invoice .pi-meta span::after {
-  content: " • ";
+.print-invoice .pi-meta span {
+  display: block;
 }
-.print-invoice .pi-meta span:last-child::after {
-  content: "";
+
+/* بطاقة عنوان الفاتورة */
+.print-invoice .pi-doc {
+  margin-top: 10px;
 }
 .print-invoice .pi-doc-title {
-  font-size: 16px;
+  font-size: 16.7px;
   font-weight: 800;
   margin: 0;
-  text-align: end;
+  color: var(--pi-navy);
+  text-align: start;
 }
 .print-invoice .pi-doc-title-en {
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  margin: 0 0 6px;
-  text-align: end;
+  font-size: 9.2px;
+  letter-spacing: 0.22em;
+  margin: 0 0 8px;
+  color: var(--pi-gold);
+  font-weight: 700;
+  text-align: start;
+}
+.print-invoice .pi-doc-table {
+  border-collapse: collapse;
+  min-width: 300px;
 }
 .print-invoice .pi-doc-table th,
 .print-invoice .pi-doc-table td {
-  border: 1px solid #cbd5e1;
-  padding: 3px 8px;
-  font-size: 10.5px;
+  border: 1px solid var(--pi-gold-soft);
+  padding: 5px 12px;
+  font-size: 9.7px;
   text-align: start;
 }
 .print-invoice .pi-doc-table th {
-  background: #f1f5f9;
+  background: #fbf8f2;
   font-weight: 600;
+  color: #475569;
+  width: 140px;
 }
+
+.print-invoice .pi-rule {
+  height: 3px;
+  background: var(--pi-navy);
+  margin: 12px 0 0;
+}
+
+/* بيانات العميل والمعاملة */
 .print-invoice .pi-parties {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 14px;
   margin-top: 14px;
 }
 .print-invoice .pi-parties > div {
-  border: 1px solid #cbd5e1;
-  padding: 8px 10px;
+  border: 1px solid var(--pi-gold-soft);
+  border-radius: 4px;
+  padding: 10px 12px;
+  min-height: 76px;
 }
 .print-invoice .pi-parties h2 {
-  font-size: 11px;
+  font-size: 10.1px;
   font-weight: 700;
-  margin: 0 0 4px;
-  color: #475569;
+  margin: 0 0 6px;
+  color: var(--pi-navy);
 }
 .print-invoice .pi-parties p {
-  margin: 1px 0;
-  font-size: 12px;
+  margin: 2px 0;
+  font-size: 10.6px;
 }
+
+/* جدول البنود */
 .print-invoice .pi-table {
   width: 100%;
   border-collapse: collapse;
@@ -280,75 +476,191 @@
 }
 .print-invoice .pi-table th,
 .print-invoice .pi-table td {
-  border: 1px solid #cbd5e1;
-  padding: 6px 8px;
+  border: 1px solid var(--pi-gold-soft);
+  padding: 8px 10px;
+  text-align: center;
+  font-size: 10.1px;
+}
+.print-invoice .pi-table td:nth-child(2) {
   text-align: start;
-  font-size: 11.5px;
 }
 .print-invoice .pi-table thead th {
-  background: #0f172a;
+  background: var(--pi-navy);
   color: #fff;
   font-weight: 700;
+  border-color: var(--pi-navy);
 }
+
+/* الإجماليات */
 .print-invoice .pi-totals {
   display: flex;
-  justify-content: flex-start;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 .print-invoice .pi-totals table {
   border-collapse: collapse;
-  min-width: 300px;
-  margin-inline-start: auto;
+  min-width: 320px;
 }
 .print-invoice .pi-totals th,
 .print-invoice .pi-totals td {
-  border: 1px solid #cbd5e1;
-  padding: 5px 10px;
-  font-size: 11.5px;
+  border: 1px solid var(--pi-gold-soft);
+  padding: 6px 12px;
+  font-size: 10.1px;
   text-align: start;
 }
 .print-invoice .pi-totals th {
-  background: #f8fafc;
+  background: #fbf8f2;
   font-weight: 600;
+  width: 170px;
 }
 .print-invoice .pi-grand th,
 .print-invoice .pi-grand td {
-  background: #0f172a;
+  background: var(--pi-gold);
   color: #fff;
   font-weight: 800;
+  border-color: var(--pi-gold);
 }
 .print-invoice .pi-due th,
 .print-invoice .pi-due td {
-  font-weight: 700;
+  background: var(--pi-navy);
+  color: #fff;
+  font-weight: 800;
+  border-color: var(--pi-navy);
 }
 .print-invoice .pi-section {
   margin: 16px 0 0;
-  font-size: 12px;
+  font-size: 10.6px;
   font-weight: 700;
+  color: var(--pi-navy);
 }
 .print-invoice .pi-notes {
   margin-top: 12px;
-  font-size: 11px;
+  font-size: 9.7px;
 }
+
+/* التذييل */
 .print-invoice .pi-footer {
-  margin-top: 18px;
-  border-top: 1px solid #cbd5e1;
-  padding-top: 10px;
-  font-size: 10.5px;
+  margin-top: 16px;
+  font-size: 9.2px;
   color: #334155;
+  position: relative;
+}
+.print-invoice .pi-stamp {
+  width: 34mm;
+  height: auto;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+.print-invoice .pi-stamp-slot {
+  display: flex;
+  justify-content: center;
+  padding: 6mm 0 4mm;
+}
+.print-invoice .pi-stamp-sign {
+  position: absolute;
+  z-index: 1;
+  inset-inline-start: 50%;
+  transform: translateX(50%) rotate(-8deg);
+  bottom: 100%;
+  margin-bottom: 2mm;
+}
+.print-invoice .pi-notebox {
+  border: 1px dashed var(--pi-gold);
+  border-radius: 4px;
+  padding: 10px 14px;
+  text-align: center;
+  line-height: 1.6;
 }
 .print-invoice .pi-fine {
   margin: 4px 0;
+  white-space: pre-line;
 }
 .print-invoice .pi-sign {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 40px;
-  margin: 26px 0 10px;
+  gap: 60px;
+  margin: 26px 0 6px;
+}
+.print-invoice .pi-sign-office {
+  position: relative;
 }
 .print-invoice .pi-sign div {
   border-top: 1px solid #94a3b8;
-  padding-top: 4px;
+  padding-top: 5px;
   text-align: center;
-  font-size: 10.5px;
+  font-size: 9.7px;
+  color: var(--pi-navy);
+  font-weight: 600;
+}
+
+
+/* تخطيط الصفحة: ترويسة وتذييل يتكرران في كل الصفحات */
+.print-invoice .pi-page {
+  width: 100%;
+  border-collapse: collapse;
+  break-inside: auto;
+  page-break-inside: auto;
+}
+.print-invoice .pi-page > thead {
+  display: table-header-group;
+}
+.print-invoice .pi-page > tfoot {
+  display: table-footer-group;
+}
+.print-invoice .pi-page > thead > tr > td,
+.print-invoice .pi-page > tbody > tr > td,
+.print-invoice .pi-page > tfoot > tr > td {
+  padding: 0;
+  border: 0;
+  text-align: start;
+  vertical-align: top;
+}
+.print-invoice .pi-page > tfoot .pi-footer {
+  margin-top: 12px;
+}
+
+.print-invoice .pi-parties,
+.print-invoice .pi-notebox,
+.print-invoice .pi-sign {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+/* ضبط دقيق لارتفاع صفحة الطباعة (يُطبَّق أخيراً) */
+@media print {
+  .print-invoice .pi-parties {
+    margin-top: 8px;
+    gap: 10px;
+  }
+  .print-invoice .pi-parties > div {
+    padding: 7px 9px;
+  }
+  .print-invoice .pi-totals {
+    margin-top: 8px;
+  }
+  .print-invoice .pi-sign {
+    margin: 11mm 0 1mm;
+  }
+  .print-invoice .pi-notes {
+    margin-top: 8px;
+  }
+}
+@media print {
+  .print-invoice .pi-totals td,
+  .print-invoice .pi-totals th {
+    padding: 3px 8px;
+    line-height: 1.2;
+  }
+  .print-invoice .pi-parties > div {
+    padding: 6px 8px;
+    line-height: 1.35;
+  }
+}
+@media print {
+  .print-invoice .pi-parties {
+    margin-top: 4px;
+  }
+  .print-invoice .pi-totals {
+    margin-top: 6px;
+  }
 }

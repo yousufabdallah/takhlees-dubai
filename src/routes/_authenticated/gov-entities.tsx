@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useInvalidate, useSb } from "@/lib/queries";
 import { useRole } from "@/hooks/useRole";
+import { localName } from "@/lib/domain";
+import { useI18n } from "@/lib/i18n";
 import { canManageCatalog } from "@/lib/permissions";
 
 import { Badge, EmptyState, PageHeader, StatCard, TableWrap, Td, Th } from "@/components/ui-kit";
@@ -40,6 +42,7 @@ export const Route = createFileRoute("/_authenticated/gov-entities")({
 type Entity = {
   id: string;
   name: string;
+  name_en: string | null;
   code: string | null;
   contact_person: string | null;
   phone: string | null;
@@ -50,6 +53,7 @@ type Entity = {
 const EMPTY = {
   id: "",
   name: "",
+  name_en: "",
   code: "",
   contact_person: "",
   phone: "",
@@ -59,6 +63,7 @@ const EMPTY = {
 
 function GovEntitiesPage() {
   const invalidate = useInvalidate();
+  const { lang } = useI18n();
   const { role } = useRole();
   const canManage = canManageCatalog(role);
   const [open, setOpen] = useState(false);
@@ -68,7 +73,7 @@ function GovEntitiesPage() {
   const entities = useSb<Entity[]>(["gov-entities"], () =>
     supabase
       .from("gov_entities")
-      .select("id, name, code, contact_person, phone, notes, active")
+      .select("id, name, name_en, code, contact_person, phone, notes, active")
       .order("name"),
   );
   const services = useSb<{ entity_id: string | null }[]>(["services-count"], () =>
@@ -87,6 +92,7 @@ function GovEntitiesPage() {
     }
     const payload = {
       name: form.name.trim(),
+      name_en: form.name_en.trim() || null,
       code: form.code || null,
       contact_person: form.contact_person || null,
       phone: form.phone || null,
@@ -164,7 +170,9 @@ function GovEntitiesPage() {
         <tbody>
           {rows.map((e) => (
             <tr key={e.id} className="hover:bg-muted/40">
-              <Td className="font-medium">{e.name}</Td>
+              <Td className="font-medium">
+                <div dir={lang === "en" ? "ltr" : "rtl"}>{localName(lang, e.name, e.name_en)}</div>
+              </Td>
               <Td className="num">{e.code ?? "—"}</Td>
               <Td>{e.contact_person ?? "—"}</Td>
               <Td className="num">{e.phone ?? "—"}</Td>
@@ -186,6 +194,7 @@ function GovEntitiesPage() {
                         setForm({
                           id: e.id,
                           name: e.name,
+                          name_en: e.name_en ?? "",
                           code: e.code ?? "",
                           contact_person: e.contact_person ?? "",
                           phone: e.phone ?? "",
@@ -239,6 +248,15 @@ function GovEntitiesPage() {
                 value={form.name}
                 onChange={(ev) => setForm({ ...form, name: ev.target.value })}
                 placeholder="مثال: دائرة التنمية الاقتصادية"
+              />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>اسم الجهة بالإنجليزية</Label>
+              <Input
+                dir="ltr"
+                value={form.name_en}
+                onChange={(ev) => setForm({ ...form, name_en: ev.target.value })}
+                placeholder="e.g. Department of Economic Development"
               />
             </div>
             <div className="space-y-1.5">

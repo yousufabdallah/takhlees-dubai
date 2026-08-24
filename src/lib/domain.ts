@@ -124,3 +124,15 @@ export function splitPayments(
 
   return out;
 }
+
+/** اختيار الاسم حسب اللغة الحالية مع الرجوع للعربية عند غياب الترجمة */
+export function localName(
+  lang: "ar" | "en",
+  ar: string | null | undefined,
+  en: string | null | undefined,
+): string {
+  const a = (ar ?? "").trim();
+  const e = (en ?? "").trim();
+  if (lang === "en") return e || a || "—";
+  return a || e || "—";
+}

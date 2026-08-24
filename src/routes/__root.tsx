@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { I18nProvider } from "@/lib/i18n";
 
 function NotFoundComponent() {
   return (
@@ -94,7 +95,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap",
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/favicon.png", type: "image/png" },
     ],
   }),
   shellComponent: RootShell,
@@ -121,10 +122,12 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
-    <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
-      <Toaster position="top-center" richColors />
-    </QueryClientProvider>
+    <I18nProvider>
+      <QueryClientProvider client={queryClient}>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+        <Toaster position="top-center" richColors />
+      </QueryClientProvider>
+    </I18nProvider>
   );
 }
