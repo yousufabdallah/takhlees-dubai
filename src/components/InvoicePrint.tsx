@@ -244,7 +244,7 @@ export function InvoicePrint({
         </div>
         <div className="flex-shrink-0">
           {/* هنا خلينا مسار الشعار favicon وكبرنا الحجم بـ w-40 */}
-          <img src="/favicon.png" alt={name} className="w-40 h-auto object-contain" />
+          <img src="/favicon.png" alt={name} className="w-30 h-auto object-contain" />
         </div>
       </header>
       <div className="pi-doc">
