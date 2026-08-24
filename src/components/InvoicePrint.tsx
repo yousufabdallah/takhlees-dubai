@@ -49,7 +49,6 @@ export type PrintPayment = {
   reference: string | null;
 };
 
-
 const INVOICE_STATUS_EN: Record<string, string> = {
   unpaid: "Unpaid",
   partial: "Partially paid",
@@ -96,7 +95,6 @@ const T = {
     trn: "الرقم الضريبي (TRN)",
     fine: "الرسوم الحكومية تُحصَّل لصالح الجهات الحكومية ولا تُحتسب ضمن دخل المكتب، ولا تخضع لضريبة القيمة المضافة.",
     officeSign: "توقيع المكتب",
-    clientSign: "توقيع العميل",
     issuedBy: (n: string) => `هذه الفاتورة صادرة إلكترونياً من ${n}`,
     dash: "—",
   },
@@ -154,7 +152,6 @@ export function InvoicePrint({
   useEffect(() => setMounted(true), []);
 
   const t = T[lang];
-
   const en = lang === "en";
   const remaining = Number(invoice.total) - Number(invoice.paid);
   const arName = office?.legal_name?.trim() || "مكتب تخليص المعاملات";
@@ -197,12 +194,6 @@ export function InvoicePrint({
     });
   }
 
-
-  const rawLogo = office?.logo_url?.trim() || "";
-  const usableLogo =
-    /^(https?:\/\/|\/)/i.test(rawLogo) && !/drive\.google\.com|docs\.google\.com|dropbox\.com\/s\//i.test(rawLogo);
-  const logoSrc = usableLogo ? rawLogo : officeLogo.url;
-
   type DisplayRow =
     | { kind: "entity"; index: number; entity: string }
     | { kind: "fee"; index: string; label: string; amount: number };
@@ -231,23 +222,30 @@ export function InvoicePrint({
     (_, index) => displayRows.slice(index * rowLimit, (index + 1) * rowLimit),
   );
 
+  // التعديل 1: ترتيب الفاتورة من فوق، وتخصيص مسار الشعار /favicon.png وتكبيره
   const header = (
     <div className="pi-repeat-header">
-      
-      <header className="pi-head">
-        <div className="pi-office">
-          <h1 className="pi-name">{name}</h1>
-          {subName && <p className="pi-name-en">{subName}</p>}
-          <p className="pi-meta">
-            {office?.phone && <span>{t.phone}: {office.phone}</span>}
-            {office?.address && <span>{office.address}</span>}
-            {office?.email && <span>{office.email}</span>}
-            {office?.website && <span>{office.website}</span>}
-            {office?.license_no && <span>{t.license}: {office.license_no}</span>}
-            {office?.trn && <span>{t.trn}: {office.trn}</span>}
-          </p>
+      <header className="flex justify-between items-start w-full border-b-2 border-gray-200 pb-6 mb-6">
+        <div className="text-right flex-1 pr-4">
+          <h1 className="text-2xl font-bold text-gray-900">{name}</h1>
+          {subName && <p className="text-lg text-gray-700 mt-1">{subName}</p>}
+          <div className="text-sm text-gray-600 mt-3 space-y-1">
+            {office?.phone && <p>{t.phone}: {office.phone}</p>}
+            {office?.address && <p>{office.address}</p>}
+            <p>
+              {office?.email && <span>{office.email} | </span>}
+              {office?.website && <span>{office.website}</span>}
+            </p>
+            <p>
+              {office?.license_no && <span>{t.license}: {office.license_no} </span>}
+              {office?.trn && <span>| {t.trn}: {office.trn}</span>}
+            </p>
+          </div>
         </div>
-        <img src={logoSrc} alt={name} className="pi-logo" />
+        <div className="flex-shrink-0">
+          {/* هنا خلينا مسار الشعار favicon وكبرنا الحجم بـ w-40 */}
+          <img src="/favicon.png" alt={name} className="w-40 h-auto object-contain" />
+        </div>
       </header>
       <div className="pi-doc">
         <p className="pi-doc-title">{t.docTitle}</p>
@@ -263,29 +261,28 @@ export function InvoicePrint({
     </div>
   );
 
+  // التعديل 2: تنسيق منطقة الختم عشان تكون متسنترة بشكل جميل ومنظم
   const signBlock = (
-    <div className="pi-sign">
-      <div className="pi-sign-office">
-        <img src={officeStamp.url} alt="" className="pi-stamp pi-stamp-sign" />
-        <span>{t.officeSign}</span>
-      </div>
-      <div>
-        <span>{t.clientSign}</span>
+    <div className="mt-12 flex justify-center w-full">
+      <div className="flex flex-col items-center">
+        <img src={officeStamp.url} alt="Stamp" className="w-32 h-auto object-contain mb-2" />
+        <span className="font-bold text-lg border-t border-gray-400 pt-2 w-48 text-center">{t.officeSign}</span>
       </div>
     </div>
   );
 
+  // التعديل 3: ضبط الفوتر
   const footer = (isLast: boolean) => (
-    <footer className="pi-footer pi-repeat-footer">
+    <footer className="pi-footer pi-repeat-footer mt-8">
       {isLast ? signBlock : (
-        <div className="pi-stamp-slot">
-          <img src={officeStamp.url} alt="" className="pi-stamp" />
+        <div className="flex justify-center mt-4">
+          <img src={officeStamp.url} alt="Stamp" className="w-24 opacity-50" />
         </div>
       )}
-      <div className="pi-notebox">
-        {office?.invoice_footer && <p className="pi-fine">{office.invoice_footer}</p>}
-        <p className="pi-fine">{t.fine}</p>
-        <p className="pi-fine pi-issued">{t.issuedBy(name)}</p>
+      <div className="text-center text-sm text-gray-500 mt-8 border-t border-gray-200 pt-4">
+        {office?.invoice_footer && <p>{office.invoice_footer}</p>}
+        <p>{t.fine}</p>
+        <p className="mt-2 font-semibold text-gray-400">{t.issuedBy(name)}</p>
       </div>
     </footer>
   );
@@ -400,7 +397,6 @@ export function InvoicePrint({
         </section>;
       })}
     </div>,
-
     document.body,
   );
 }
