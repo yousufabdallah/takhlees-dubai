@@ -4,6 +4,27 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@media print {
+  @page {
+    size: A4;
+    margin: 8mm; /* تصغير الهوامش شوية عشان تمنع ظهور صفحات فاضية */
+  }
+
+  body {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    /* تثبيت الخط الافتراضي للطباعة عشان ما يتغيرش عند العميل */
+    font-family: 'Cairo', sans-serif, Arial, Helvetica; 
+  }
+
+  /* منع ظهور أي صفحات فارغة زائدة عن طريق التحكم في الفواصل */
+  .pi-footer, footer {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
+
 @theme inline {
   --font-sans: "Cairo", ui-sans-serif, system-ui, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
