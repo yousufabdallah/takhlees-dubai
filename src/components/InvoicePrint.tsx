@@ -265,7 +265,7 @@ export function InvoicePrint({
   const signBlock = (
     <div className="mt-12 flex justify-center w-full">
       <div className="flex flex-col items-center">
-        <img src={officeStamp.url} alt="Stamp" className="w-32 h-auto object-contain mb-2" />
+        <img src="/__l5e/assets-v1/fd8ddc7e-2680-4b62-90b0-bb8de6125f75/office-stamp.jpg" alt="Stamp" className="w-32 h-auto object-contain mb-2" />
         <span className="font-bold text-lg border-t border-gray-400 pt-2 w-48 text-center">{t.officeSign}</span>
       </div>
     </div>
@@ -276,7 +276,7 @@ export function InvoicePrint({
     <footer className="pi-footer pi-repeat-footer mt-8">
       {isLast ? signBlock : (
         <div className="flex justify-center mt-4">
-          <img src={officeStamp.url} alt="Stamp" className="w-24 opacity-50" />
+          <img src="/__l5e/assets-v1/fd8ddc7e-2680-4b62-90b0-bb8de6125f75/office-stamp.jpg" alt="Stamp" className="w-24 opacity-50" />
         </div>
       )}
       <div className="text-center text-sm text-gray-500 mt-8 border-t border-gray-200 pt-4">
