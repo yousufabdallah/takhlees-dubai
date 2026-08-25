@@ -363,142 +363,65 @@ export function InvoicePrint({
 
   const header = (
     <div className="pi-repeat-header">
-
-      <header
-        className="
-          invoice-header
-          flex
-          justify-between
-          items-start
-          w-full
-          border-b-2
-          border-gray-200
-        "
-      >
-        <div className="text-right flex-1 pr-4">
-
-          <h1 className="text-2xl font-bold text-gray-900">
+      <header className="flex justify-between items-center w-full border-b border-gray-300 pb-2 mb-3 gap-4">
+        <div className="text-right flex-1">
+          <h1 className="text-xl font-bold text-gray-900 leading-tight">
             {name}
           </h1>
 
           {subName && (
-            <p className="text-lg text-gray-700 mt-1">
+            <p className="text-sm font-medium text-gray-700 mt-0.5 leading-tight">
               {subName}
             </p>
           )}
 
-          <div className="text-sm text-gray-600 mt-3 space-y-1">
-
+          <div className="text-xs text-gray-600 mt-1.5 space-y-0.5 leading-tight">
             {office?.phone && (
-              <p>
-                {t.phone}: {office.phone}
-              </p>
+              <p>{t.phone}: {office.phone}</p>
             )}
 
             {office?.address && (
-              <p>
-                {office.address}
-              </p>
+              <p>{office.address}</p>
             )}
 
             <p>
-              {office?.email && (
-                <span>
-                  {office.email}{" "}
-                  |{" "}
-                </span>
-              )}
-
-              {office?.website && (
-                <span>
-                  {office.website}
-                </span>
-              )}
+              {office?.email && <span>{office.email} | </span>}
+              {office?.website && <span>{office.website}</span>}
             </p>
 
             <p>
               {office?.license_no && (
-                <span>
-                  {t.license}:{" "}
-                  {office.license_no}{" "}
-                </span>
+                <span>{t.license}: {office.license_no} </span>
               )}
 
               {office?.trn && (
-                <span>
-                  | {t.trn}:{" "}
-                  {office.trn}
-                </span>
+                <span>| {t.trn}: {office.trn}</span>
               )}
             </p>
-
           </div>
         </div>
 
-        <div className="flex-shrink-0">
-
+        <div className="flex-shrink-0 self-center">
           <img
-            src="/Nukhbt-Almstqbl-CMYK-02.png"
+            src="/Nukhbt-Almstqbl-CMYK-0.png"
             alt={name}
-            className="
-              w-60
-              h-auto
-              object-contain
-              [image-rendering:-webkit-optimize-contrast]
-            "
+            className="w-64 h-auto object-contain [image-rendering:-webkit-optimize-contrast]"
           />
-
         </div>
       </header>
-
       <div className="pi-doc">
-
-        <p className="pi-doc-title">
-          {t.docTitle}
-        </p>
-
-        <p className="pi-doc-title-en">
-          {t.docTitleAlt}
-        </p>
-
+        <p className="pi-doc-title">{t.docTitle}</p>
+        <p className="pi-doc-title-en">{t.docTitleAlt}</p>
         <table className="pi-doc-table">
           <tbody>
-
-            <tr>
-              <th>{t.invoiceNo}</th>
-              <td className="num">
-                {invoice.invoice_no}
-              </td>
-            </tr>
-
-            <tr>
-              <th>{t.issueDate}</th>
-              <td className="num">
-                {dateAr(invoice.issue_date)}
-              </td>
-            </tr>
-
-            <tr>
-              <th>{t.dueDate}</th>
-              <td className="num">
-                {dateAr(invoice.due_date)}
-              </td>
-            </tr>
-
-            <tr>
-              <th>{t.status}</th>
-              <td>
-                {statusLabel}
-              </td>
-            </tr>
-
+            <tr><th>{t.invoiceNo}</th><td className="num">{invoice.invoice_no}</td></tr>
+            <tr><th>{t.issueDate}</th><td className="num">{dateAr(invoice.issue_date)}</td></tr>
+            <tr><th>{t.dueDate}</th><td className="num">{dateAr(invoice.due_date)}</td></tr>
+            <tr><th>{t.status}</th><td>{statusLabel}</td></tr>
           </tbody>
         </table>
-
       </div>
-
       <div className="pi-rule" />
-
     </div>
   );
 
