@@ -4,65 +4,62 @@
 
 @custom-variant dark (&:is(.dark *));
 
-@media print {
-  @page {
-    size: A4;
-    margin: 8mm; /* تصغير الهوامش شوية عشان تمنع ظهور صفحات فاضية */
-  }
-
-  body {
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    /* تثبيت الخط الافتراضي للطباعة عشان ما يتغيرش عند العميل */
-    font-family: 'Cairo', sans-serif, Arial, Helvetica; 
-  }
-
-  /* منع ظهور أي صفحات فارغة زائدة عن طريق التحكم في الفواصل */
-  .pi-footer, footer {
-    page-break-inside: avoid;
-    break-inside: avoid;
-  }
-}
+/* =========================================================
+   THEME
+   ========================================================= */
 
 @theme inline {
   --font-sans: "Cairo", ui-sans-serif, system-ui, sans-serif;
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
+
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
+
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+
   --color-gov: var(--gov);
   --color-gov-foreground: var(--gov-foreground);
+
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-ring-offset-background: var(--background);
+
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -71,41 +68,62 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --shadow-panel: 0 1px 2px oklch(0.2 0.03 220 / 0.06), 0 8px 24px oklch(0.2 0.03 220 / 0.06);
+
+  --shadow-panel:
+    0 1px 2px oklch(0.2 0.03 220 / 0.06),
+    0 8px 24px oklch(0.2 0.03 220 / 0.06);
 }
+
+/* =========================================================
+   ROOT VARIABLES
+   ========================================================= */
 
 :root {
   --radius: 0.75rem;
+
   --background: oklch(0.985 0.004 100);
   --foreground: oklch(0.22 0.02 230);
+
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.22 0.02 230);
+
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.22 0.02 230);
+
   --primary: oklch(0.42 0.075 205);
   --primary-foreground: oklch(0.99 0.005 100);
+
   --secondary: oklch(0.95 0.012 200);
   --secondary-foreground: oklch(0.32 0.045 210);
+
   --muted: oklch(0.955 0.008 190);
   --muted-foreground: oklch(0.52 0.02 220);
+
   --accent: oklch(0.78 0.12 82);
   --accent-foreground: oklch(0.25 0.04 60);
+
   --destructive: oklch(0.58 0.2 25);
   --destructive-foreground: oklch(0.99 0.005 100);
+
   --success: oklch(0.6 0.13 155);
   --success-foreground: oklch(0.99 0.005 100);
+
   --warning: oklch(0.78 0.14 75);
   --warning-foreground: oklch(0.25 0.04 60);
+
   --gov: oklch(0.55 0.11 265);
   --gov-foreground: oklch(0.99 0.005 100);
+
   --border: oklch(0.9 0.01 210);
   --input: oklch(0.9 0.01 210);
   --ring: oklch(0.42 0.075 205);
+
   --chart-1: oklch(0.42 0.075 205);
   --chart-2: oklch(0.78 0.12 82);
   --chart-3: oklch(0.6 0.13 155);
   --chart-4: oklch(0.55 0.11 265);
   --chart-5: oklch(0.58 0.2 25);
+
   --sidebar: oklch(0.26 0.035 218);
   --sidebar-foreground: oklch(0.93 0.01 200);
   --sidebar-primary: oklch(0.78 0.12 82);
@@ -116,32 +134,48 @@
   --sidebar-ring: oklch(0.78 0.12 82);
 }
 
+/* =========================================================
+   DARK MODE
+   ========================================================= */
+
 .dark {
   --background: oklch(0.19 0.02 225);
   --foreground: oklch(0.96 0.005 100);
+
   --card: oklch(0.24 0.025 222);
   --card-foreground: oklch(0.96 0.005 100);
+
   --popover: oklch(0.24 0.025 222);
   --popover-foreground: oklch(0.96 0.005 100);
+
   --primary: oklch(0.72 0.09 200);
   --primary-foreground: oklch(0.18 0.02 225);
+
   --secondary: oklch(0.3 0.03 220);
   --secondary-foreground: oklch(0.96 0.005 100);
+
   --muted: oklch(0.3 0.03 220);
   --muted-foreground: oklch(0.72 0.02 210);
+
   --accent: oklch(0.78 0.12 82);
   --accent-foreground: oklch(0.2 0.03 60);
+
   --destructive: oklch(0.62 0.19 25);
   --destructive-foreground: oklch(0.98 0.005 100);
+
   --success: oklch(0.65 0.13 155);
   --success-foreground: oklch(0.18 0.02 225);
+
   --warning: oklch(0.78 0.14 75);
   --warning-foreground: oklch(0.2 0.03 60);
+
   --gov: oklch(0.65 0.11 265);
   --gov-foreground: oklch(0.18 0.02 225);
+
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 16%);
   --ring: oklch(0.72 0.09 200);
+
   --sidebar: oklch(0.22 0.025 222);
   --sidebar-foreground: oklch(0.93 0.01 200);
   --sidebar-primary: oklch(0.78 0.12 82);
@@ -152,9 +186,19 @@
   --sidebar-ring: oklch(0.78 0.12 82);
 }
 
+/* =========================================================
+   BASE
+   ========================================================= */
+
 @layer base {
   * {
     border-color: var(--color-border);
+  }
+
+  html,
+  body {
+    margin: 0;
+    padding: 0;
   }
 
   body {
@@ -171,6 +215,10 @@
   }
 }
 
+/* =========================================================
+   UTILITIES
+   ========================================================= */
+
 @utility surface {
   background-color: var(--color-card);
   border: 1px solid var(--color-border);
@@ -184,205 +232,58 @@
   unicode-bidi: isolate;
 }
 
-/* ===== طباعة الفاتورة الرسمية ===== */
-@media print {
-  @page {
-    size: A4;
-    margin: 0;
-  }
-  html,
-  body {
-    background: #fff !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    height: auto !important;
-    overflow: visible !important;
-  }
-  body > *:not(.print-invoice) {
-    display: none !important;
-  }
-  .print-invoice {
-    display: block !important;
-    width: 100% !important;
-    margin: 0 !important;
-    border: 0 !important;
-    padding: 0 !important;
-    position: static !important;
-  }
-  .print-invoice table {
-    page-break-inside: auto;
-    break-inside: auto;
-  }
-  .print-invoice .pi-table tr,
-  .print-invoice .pi-totals tr,
-  .print-invoice .pi-doc-table tr {
-    page-break-inside: avoid;
-    break-inside: avoid;
-  }
-  .print-invoice .pi-page > thead {
-    display: table-header-group;
-  }
-  .print-invoice .pi-page > tfoot {
-    display: table-footer-group;
-  }
-  .print-invoice .pi-page > thead > tr,
-  .print-invoice .pi-page > tfoot > tr,
-  .print-invoice .pi-page > thead > tr > td,
-  .print-invoice .pi-page > tfoot > tr > td {
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-  .print-invoice .pi-page > tbody > .pi-content-row,
-  .print-invoice .pi-page > tbody > .pi-content-row > td {
-    break-inside: auto;
-    page-break-inside: auto;
-  }
-  .print-invoice .pi-sheet {
-    width: 210mm;
-    height: 296.5mm;
-    min-height: 296.5mm;
-    max-height: 296.5mm;
-    margin: 0;
-    /* Reserve a fixed footer zone plus the requested 30mm clear space. */
-    padding: 5mm 10mm 86mm;
-    border: 0 !important;
-    box-sizing: border-box;
-    overflow: hidden;
-    position: relative;
-    display: block;
-    break-inside: avoid;
-    page-break-inside: avoid;
-    break-after: page;
-    page-break-after: always;
-  }
-  .print-invoice .pi-sheet:last-child {
-    break-after: auto;
-    page-break-after: auto;
-  }
-  .print-invoice .pi-datestamp {
-    margin-top: 0;
-  }
-  .print-invoice .pi-head {
-    max-height: 27mm;
-  }
-  .print-invoice .pi-logo {
-    height: 20mm;
-  }
-  .print-invoice .pi-doc {
-    margin-top: 1mm;
-  }
-  .print-invoice .pi-doc-table th,
-  .print-invoice .pi-doc-table td {
-    padding-block: 1mm;
-  }
-  .print-invoice .pi-rule {
-    margin-top: 2mm;
-  }
-  .print-invoice .pi-repeat-footer.pi-footer {
-    position: absolute;
-    inset-inline: 10mm;
-    bottom: 30mm;
-    height: 52mm;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    overflow: visible;
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-  .print-invoice .pi-stamp-slot {
-    position: absolute;
-    inset-inline: 0;
-    bottom: 17mm;
-    height: 34mm;
-    padding: 0;
-    align-items: center;
-  }
-  .print-invoice .pi-content {
-    overflow: hidden;
-  }
-  .print-invoice .pi-notebox {
-    height: 17mm;
-    box-sizing: border-box;
-    padding: 1.5mm 4mm;
-    line-height: 1.25;
-    font-size: 8.4px;
-    overflow: hidden;
-  }
-  .print-invoice .pi-fine {
-    margin: 0.6mm 0;
-  }
-  .print-invoice .pi-sign {
-    position: absolute;
-    inset-inline: 0;
-    bottom: 18mm;
-    height: 25mm;
-    margin: 0;
-    align-items: end;
-  }
-  .print-invoice .pi-totals {
-    margin-top: 2mm;
-  }
-  .print-invoice .pi-parties {
-    margin-block: 1.5mm;
-  }
-
-
-  .print-invoice img {
-    display: inline-block !important;
-    visibility: visible !important;
-  }
-  .print-invoice,
-  .print-invoice * {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-}
+/* =========================================================
+   INVOICE DESIGN VARIABLES
+   ========================================================= */
 
 .print-invoice {
   --pi-navy: #16264a;
   --pi-gold: #b8965a;
   --pi-gold-soft: #e6d8bd;
   --pi-ink: #1f2937;
+
   width: 100%;
   color: var(--pi-ink);
   font-size: 10.6px;
   border: 7px solid var(--pi-navy);
   padding: 9mm 8mm 0;
   position: relative;
+  box-sizing: border-box;
 }
+
+/* =========================================================
+   INVOICE SHEET
+   ========================================================= */
 
 .print-invoice .pi-sheet {
+  width: 100%;
   min-height: 279mm;
+
   border: 7px solid var(--pi-navy);
+
   display: grid;
   grid-template-rows: auto 1fr auto;
-}
-.print-invoice .pi-content {
-  min-height: 0;
-  overflow: hidden;
-}
-.print-invoice .pi-issued {
-  text-align: center;
-  border-top: 1px solid var(--pi-gold-soft);
-  padding-top: 1.2mm;
-}
-.print-invoice .pi-entity-name {
-  font-weight: 700;
-}
-.print-invoice .pi-fee-label {
-  padding-inline-start: 18px;
+
+  box-sizing: border-box;
+
+  position: relative;
 }
 
-/* رأس الفاتورة */
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.print-invoice .pi-repeat-header {
+  width: 100%;
+}
+
 .print-invoice .pi-datestamp {
   text-align: end;
   font-size: 9.2px;
   color: #475569;
   margin: 0 0 6px;
 }
+
 .print-invoice .pi-head {
   display: flex;
   justify-content: space-between;
@@ -390,26 +291,31 @@
   gap: 18px;
   flex-direction: row-reverse;
 }
+
 .print-invoice .pi-office {
   display: block;
   text-align: start;
 }
+
 .print-invoice .pi-logo {
   height: 78px;
   object-fit: contain;
 }
+
 .print-invoice .pi-name {
   font-size: 16.7px;
   font-weight: 800;
   margin: 0;
   color: var(--pi-navy);
 }
+
 .print-invoice .pi-name-en {
   font-size: 10.1px;
   letter-spacing: 0.02em;
   margin: 2px 0 6px;
   color: #475569;
 }
+
 .print-invoice .pi-meta {
   margin: 2px 0 0;
   font-size: 9.2px;
@@ -418,14 +324,19 @@
   flex-wrap: wrap;
   gap: 2px 14px;
 }
+
 .print-invoice .pi-meta span {
   display: block;
 }
 
-/* بطاقة عنوان الفاتورة */
+/* =========================================================
+   INVOICE DOCUMENT INFO
+   ========================================================= */
+
 .print-invoice .pi-doc {
   margin-top: 10px;
 }
+
 .print-invoice .pi-doc-title {
   font-size: 16.7px;
   font-weight: 800;
@@ -433,6 +344,7 @@
   color: var(--pi-navy);
   text-align: start;
 }
+
 .print-invoice .pi-doc-title-en {
   font-size: 9.2px;
   letter-spacing: 0.22em;
@@ -441,10 +353,12 @@
   font-weight: 700;
   text-align: start;
 }
+
 .print-invoice .pi-doc-table {
   border-collapse: collapse;
   min-width: 300px;
 }
+
 .print-invoice .pi-doc-table th,
 .print-invoice .pi-doc-table td {
   border: 1px solid var(--pi-gold-soft);
@@ -452,6 +366,7 @@
   font-size: 9.7px;
   text-align: start;
 }
+
 .print-invoice .pi-doc-table th {
   background: #fbf8f2;
   font-weight: 600;
@@ -465,36 +380,59 @@
   margin: 12px 0 0;
 }
 
-/* بيانات العميل والمعاملة */
+/* =========================================================
+   MAIN CONTENT
+   ========================================================= */
+
+.print-invoice .pi-content {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* =========================================================
+   CLIENT / TRANSACTION
+   ========================================================= */
+
 .print-invoice .pi-parties {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
   margin-top: 14px;
+
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
+
 .print-invoice .pi-parties > div {
   border: 1px solid var(--pi-gold-soft);
   border-radius: 4px;
   padding: 10px 12px;
   min-height: 76px;
+  box-sizing: border-box;
 }
+
 .print-invoice .pi-parties h2 {
   font-size: 10.1px;
   font-weight: 700;
   margin: 0 0 6px;
   color: var(--pi-navy);
 }
+
 .print-invoice .pi-parties p {
   margin: 2px 0;
   font-size: 10.6px;
 }
 
-/* جدول البنود */
+/* =========================================================
+   ITEMS TABLE
+   ========================================================= */
+
 .print-invoice .pi-table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 14px;
 }
+
 .print-invoice .pi-table th,
 .print-invoice .pi-table td {
   border: 1px solid var(--pi-gold-soft);
@@ -502,9 +440,11 @@
   text-align: center;
   font-size: 10.1px;
 }
+
 .print-invoice .pi-table td:nth-child(2) {
   text-align: start;
 }
+
 .print-invoice .pi-table thead th {
   background: var(--pi-navy);
   color: #fff;
@@ -512,15 +452,36 @@
   border-color: var(--pi-navy);
 }
 
-/* الإجماليات */
+.print-invoice .pi-table tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.print-invoice .pi-entity-name {
+  font-weight: 700;
+}
+
+.print-invoice .pi-fee-label {
+  padding-inline-start: 18px;
+}
+
+/* =========================================================
+   TOTALS
+   ========================================================= */
+
 .print-invoice .pi-totals {
   display: flex;
   margin-top: 12px;
+
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
+
 .print-invoice .pi-totals table {
   border-collapse: collapse;
   min-width: 320px;
 }
+
 .print-invoice .pi-totals th,
 .print-invoice .pi-totals td {
   border: 1px solid var(--pi-gold-soft);
@@ -528,11 +489,13 @@
   font-size: 10.1px;
   text-align: start;
 }
+
 .print-invoice .pi-totals th {
   background: #fbf8f2;
   font-weight: 600;
   width: 170px;
 }
+
 .print-invoice .pi-grand th,
 .print-invoice .pi-grand td {
   background: var(--pi-gold);
@@ -540,6 +503,7 @@
   font-weight: 800;
   border-color: var(--pi-gold);
 }
+
 .print-invoice .pi-due th,
 .print-invoice .pi-due td {
   background: var(--pi-navy);
@@ -547,24 +511,44 @@
   font-weight: 800;
   border-color: var(--pi-navy);
 }
+
+/* =========================================================
+   SECTIONS / NOTES
+   ========================================================= */
+
 .print-invoice .pi-section {
   margin: 16px 0 0;
   font-size: 10.6px;
   font-weight: 700;
   color: var(--pi-navy);
+
+  break-after: avoid;
+  page-break-after: avoid;
 }
+
 .print-invoice .pi-notes {
   margin-top: 12px;
   font-size: 9.7px;
+
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
-/* التذييل */
+/* =========================================================
+   FOOTER
+   ========================================================= */
+
 .print-invoice .pi-footer {
   margin-top: 16px;
   font-size: 9.2px;
   color: #334155;
   position: relative;
 }
+
+.print-invoice .pi-repeat-footer {
+  box-sizing: border-box;
+}
+
 .print-invoice .pi-stamp {
   width: 34mm;
   height: auto;
@@ -572,11 +556,13 @@
   mix-blend-mode: multiply;
   pointer-events: none;
 }
+
 .print-invoice .pi-stamp-slot {
   display: flex;
   justify-content: center;
   padding: 6mm 0 4mm;
 }
+
 .print-invoice .pi-stamp-sign {
   position: absolute;
   z-index: 1;
@@ -585,26 +571,37 @@
   bottom: 100%;
   margin-bottom: 2mm;
 }
+
 .print-invoice .pi-notebox {
   border: 1px dashed var(--pi-gold);
   border-radius: 4px;
   padding: 10px 14px;
   text-align: center;
   line-height: 1.6;
+
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
+
 .print-invoice .pi-fine {
   margin: 4px 0;
   white-space: pre-line;
 }
+
 .print-invoice .pi-sign {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 60px;
   margin: 26px 0 6px;
+
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
+
 .print-invoice .pi-sign-office {
   position: relative;
 }
+
 .print-invoice .pi-sign div {
   border-top: 1px solid #94a3b8;
   padding-top: 5px;
@@ -614,74 +611,414 @@
   font-weight: 600;
 }
 
+/* =========================================================
+   PRINT
+   ========================================================= */
 
-/* تخطيط الصفحة: ترويسة وتذييل يتكرران في كل الصفحات */
-.print-invoice .pi-page {
-  width: 100%;
-  border-collapse: collapse;
-  break-inside: auto;
-  page-break-inside: auto;
-}
-.print-invoice .pi-page > thead {
-  display: table-header-group;
-}
-.print-invoice .pi-page > tfoot {
-  display: table-footer-group;
-}
-.print-invoice .pi-page > thead > tr > td,
-.print-invoice .pi-page > tbody > tr > td,
-.print-invoice .pi-page > tfoot > tr > td {
-  padding: 0;
-  border: 0;
-  text-align: start;
-  vertical-align: top;
-}
-.print-invoice .pi-page > tfoot .pi-footer {
-  margin-top: 12px;
-}
-
-.print-invoice .pi-parties,
-.print-invoice .pi-notebox,
-.print-invoice .pi-sign {
-  break-inside: avoid;
-  page-break-inside: avoid;
-}
-
-/* ضبط دقيق لارتفاع صفحة الطباعة (يُطبَّق أخيراً) */
 @media print {
+
+  /*
+   * A4 page without browser margins.
+   * The .pi-sheet itself controls the page layout.
+   */
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  html,
+  body {
+    width: 100% !important;
+    height: auto !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    background: #fff !important;
+
+    overflow: visible !important;
+
+    font-family: "Cairo", Arial, Helvetica, sans-serif !important;
+  }
+
+  /*
+   * Hide the normal application.
+   */
+  body > *:not(.print-invoice) {
+    display: none !important;
+  }
+
+  /*
+   * Print container.
+   */
+  .print-invoice {
+    display: block !important;
+
+    width: 100% !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    border: 0 !important;
+
+    position: static !important;
+
+    overflow: visible !important;
+
+    background: #fff !important;
+  }
+
+  /*
+   * =======================================================
+   * EACH .pi-sheet = ONE PHYSICAL A4 PAGE
+   * =======================================================
+   */
+
+  .print-invoice .pi-sheet {
+    position: relative !important;
+
+    width: 210mm !important;
+    height: 297mm !important;
+
+    min-height: 297mm !important;
+    max-height: 297mm !important;
+
+    margin: 0 !important;
+
+    /*
+     * Do NOT use the old 86mm bottom padding.
+     * Footer is positioned independently.
+     */
+    padding: 7mm 10mm 32mm !important;
+
+    box-sizing: border-box !important;
+
+    border: 0 !important;
+
+    display: block !important;
+
+    overflow: hidden !important;
+
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+
+    break-after: page !important;
+    page-break-after: always !important;
+  }
+
+  /*
+   * Last page must NOT generate an additional blank page.
+   */
+  .print-invoice .pi-sheet:last-child {
+    break-after: auto !important;
+    page-break-after: auto !important;
+  }
+
+  /*
+   * Optional invoice frame.
+   * Uncomment if you want the navy border around each page.
+   */
+  /*
+  .print-invoice .pi-sheet {
+    border: 1mm solid var(--pi-navy) !important;
+  }
+  */
+
+  /*
+   * =======================================================
+   * HEADER
+   * =======================================================
+   */
+
+  .print-invoice .pi-repeat-header {
+    width: 100% !important;
+
+    display: block !important;
+
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /*
+   * If the React header uses Tailwind spacing,
+   * normalize it for print.
+   */
+  .print-invoice .invoice-header {
+    margin: 0 0 4mm !important;
+    padding-bottom: 4mm !important;
+  }
+
+  .print-invoice .pi-doc {
+    margin-top: 1mm !important;
+  }
+
+  .print-invoice .pi-doc-table th,
+  .print-invoice .pi-doc-table td {
+    padding-top: 1mm !important;
+    padding-bottom: 1mm !important;
+  }
+
+  .print-invoice .pi-rule {
+    margin-top: 2mm !important;
+  }
+
+  /*
+   * =======================================================
+   * CONTENT
+   * =======================================================
+   */
+
+  .print-invoice .pi-content {
+    width: 100% !important;
+
+    min-height: 0 !important;
+
+    overflow: hidden !important;
+
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  /*
+   * =======================================================
+   * PARTIES
+   * =======================================================
+   */
+
   .print-invoice .pi-parties {
-    margin-top: 8px;
-    gap: 10px;
+    margin-top: 4mm !important;
+
+    gap: 10px !important;
+
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
+
   .print-invoice .pi-parties > div {
-    padding: 7px 9px;
+    padding: 6px 8px !important;
+
+    line-height: 1.35 !important;
+
+    min-height: 0 !important;
   }
+
+  /*
+   * =======================================================
+   * TABLES
+   * =======================================================
+   */
+
+  .print-invoice table {
+    border-collapse: collapse !important;
+
+    page-break-inside: auto;
+    break-inside: auto;
+  }
+
+  .print-invoice .pi-table {
+    margin-top: 4mm !important;
+  }
+
+  .print-invoice .pi-table tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /*
+   * =======================================================
+   * TOTALS
+   * =======================================================
+   */
+
   .print-invoice .pi-totals {
-    margin-top: 8px;
+    margin-top: 6px !important;
+
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
-  .print-invoice .pi-sign {
-    margin: 11mm 0 1mm;
+
+  .print-invoice .pi-totals table {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
-  .print-invoice .pi-notes {
-    margin-top: 8px;
-  }
-}
-@media print {
+
   .print-invoice .pi-totals td,
   .print-invoice .pi-totals th {
-    padding: 3px 8px;
-    line-height: 1.2;
+    padding: 3px 8px !important;
+    line-height: 1.2 !important;
   }
-  .print-invoice .pi-parties > div {
-    padding: 6px 8px;
-    line-height: 1.35;
+
+  /*
+   * =======================================================
+   * NOTES
+   * =======================================================
+   */
+
+  .print-invoice .pi-notes {
+    margin-top: 8px !important;
+
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /*
+   * =======================================================
+   * FOOTER
+   *
+   * The footer is absolutely positioned inside the
+   * .pi-sheet so it cannot push the page height.
+   * =======================================================
+   */
+
+  .print-invoice .pi-repeat-footer {
+    position: absolute !important;
+
+    left: 10mm !important;
+    right: 10mm !important;
+
+    bottom: 7mm !important;
+
+    width: auto !important;
+
+    height: auto !important;
+
+    margin: 0 !important;
+
+    padding: 3mm 0 0 !important;
+
+    box-sizing: border-box !important;
+
+    border-top: 1px solid #e5e7eb !important;
+
+    display: block !important;
+
+    overflow: visible !important;
+
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /*
+   * Footer flex row.
+   */
+  .print-invoice .pi-repeat-footer > div {
+    width: 100% !important;
+
+    display: flex !important;
+
+    align-items: center !important;
+
+    justify-content: space-between !important;
+
+    box-sizing: border-box !important;
+  }
+
+  /*
+   * Footer text.
+   */
+  .print-invoice .pi-repeat-footer .flex-1 {
+    min-width: 0 !important;
+  }
+
+  /*
+   * Stamp.
+   */
+  .print-invoice .pi-repeat-footer img {
+    width: 24mm !important;
+
+    max-width: 24mm !important;
+
+    height: auto !important;
+
+    display: block !important;
+
+    visibility: visible !important;
+
+    object-fit: contain !important;
+
+    flex-shrink: 0 !important;
+  }
+
+  /*
+   * =======================================================
+   * IMAGES
+   * =======================================================
+   */
+
+  .print-invoice img {
+    display: inline-block !important;
+
+    visibility: visible !important;
+
+    max-width: 100% !important;
+
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /*
+   * =======================================================
+   * COLORS
+   * =======================================================
+   */
+
+  .print-invoice,
+  .print-invoice * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /*
+   * =======================================================
+   * SAFARI / iOS PRINT SAFETY
+   * =======================================================
+   */
+
+  .print-invoice .pi-sheet,
+  .print-invoice .pi-repeat-header,
+  .print-invoice .pi-repeat-footer,
+  .print-invoice .pi-parties,
+  .print-invoice .pi-totals,
+  .print-invoice .pi-notes {
+    -webkit-column-break-inside: avoid !important;
+    -webkit-region-break-inside: avoid !important;
+  }
+
+  /*
+   * Prevent transforms from creating unexpected
+   * print-layout overflow.
+   */
+  .print-invoice {
+    transform: none !important;
+  }
+
+  /*
+   * Avoid flex/grid items becoming larger than the
+   * available print width.
+   */
+  .print-invoice .pi-sheet,
+  .print-invoice .pi-content,
+  .print-invoice table {
+    max-width: 100% !important;
   }
 }
+
+/* =========================================================
+   SMALL PRINT ADJUSTMENTS
+   ========================================================= */
+
 @media print {
-  .print-invoice .pi-parties {
-    margin-top: 4px;
+
+  .print-invoice .pi-table th,
+  .print-invoice .pi-table td {
+    padding: 6px 8px;
   }
-  .print-invoice .pi-totals {
-    margin-top: 6px;
+
+  .print-invoice .pi-section {
+    margin-top: 8px;
+  }
+
+  .print-invoice .pi-notes {
+    font-size: 9.2px;
   }
 }
