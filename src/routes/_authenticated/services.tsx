@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { ListChecks, Pencil, Plus, Trash2 } from "lucide-react";
+
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -29,6 +30,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import {
+  STATUS_COLORS,
+  colorTone,
+  type ServiceStatus,
+} from "@/lib/service-statuses";
+
 
 export const Route = createFileRoute("/_authenticated/services")({
   head: () => ({
@@ -76,6 +83,7 @@ function ServicesPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [filter, setFilter] = useState("all");
+  const [statusFor, setStatusFor] = useState<Service | null>(null);
 
 
   const entities = useSb<Entity[]>(["gov-entities"], () =>
@@ -87,6 +95,18 @@ function ServicesPage() {
       .select("id, name, name_en, gov_entity, entity_id, default_gov_fee, default_office_fee, active")
       .order("name"),
   );
+  const statuses = useSb<ServiceStatus[]>(["service-statuses"], () =>
+    supabase
+      .from("service_statuses")
+      .select("id, type_id, name, name_en, color, sort_order, is_final")
+      .order("sort_order"),
+  );
+  const statusCounts = (statuses.data ?? []).reduce<Record<string, number>>((acc, s) => {
+    acc[s.type_id] = (acc[s.type_id] ?? 0) + 1;
+    return acc;
+  }, {});
+
+
 
   const entityList = entities.data ?? [];
   const all = services.data ?? [];
@@ -225,8 +245,10 @@ function ServicesPage() {
               lang={lang}
               items={g.items}
               canManage={canManage}
+              statusCounts={statusCounts}
               onEdit={edit}
               onDelete={(s) => void remove(s)}
+              onStatuses={setStatusFor}
             />
           </section>
         ))}
@@ -238,9 +260,12 @@ function ServicesPage() {
               lang={lang}
               items={orphans}
               canManage={canManage}
+              statusCounts={statusCounts}
               onEdit={edit}
               onDelete={(s) => void remove(s)}
+              onStatuses={setStatusFor}
             />
+
           </section>
         )}
 
@@ -327,7 +352,17 @@ function ServicesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <StatusesDialog
+        service={statusFor}
+        lang={lang}
+        canManage={canManage}
+        statuses={statuses.data ?? []}
+        onClose={() => setStatusFor(null)}
+        onChanged={() => invalidate("service-statuses")}
+      />
     </>
+
   );
 }
 
@@ -335,14 +370,18 @@ function ServiceTable({
   lang,
   items,
   canManage,
+  statusCounts,
   onEdit,
   onDelete,
+  onStatuses,
 }: {
   lang: "ar" | "en";
   items: Service[];
   canManage: boolean;
+  statusCounts: Record<string, number>;
   onEdit: (s: Service) => void;
   onDelete: (s: Service) => void;
+  onStatuses: (s: Service) => void;
 }) {
 
   if (items.length === 0)
@@ -359,6 +398,7 @@ function ServiceTable({
           <Th>الرسوم الحكومية</Th>
           <Th>رسوم المكتب</Th>
           <Th>الإجمالي</Th>
+          <Th>حالات الخدمة</Th>
           <Th>الحالة</Th>
           {canManage && <Th>إجراءات</Th>}
         </tr>
@@ -373,6 +413,17 @@ function ServiceTable({
             <Td className="num">{money(s.default_office_fee)}</Td>
             <Td className="num font-semibold">
               {money(Number(s.default_gov_fee) + Number(s.default_office_fee))}
+            </Td>
+            <Td>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1"
+                onClick={() => onStatuses(s)}
+              >
+                <ListChecks className="size-4" />
+                {statusCounts[s.id] ? `${statusCounts[s.id]} حالة` : "الحالات الافتراضية"}
+              </Button>
             </Td>
             <Td>
               <Badge
@@ -399,6 +450,183 @@ function ServiceTable({
     </TableWrap>
   );
 }
+
+function StatusesDialog({
+  service,
+  lang,
+  canManage,
+  statuses,
+  onClose,
+  onChanged,
+}: {
+  service: Service | null;
+  lang: "ar" | "en";
+  canManage: boolean;
+  statuses: ServiceStatus[];
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [nameEn, setNameEn] = useState("");
+  const [color, setColor] = useState("muted");
+  const [isFinal, setIsFinal] = useState(false);
+  const list = service ? statuses.filter((s) => s.type_id === service.id) : [];
+
+  async function add() {
+    if (!service) return;
+    if (!name.trim()) {
+      toast.error("اسم الحالة مطلوب");
+      return;
+    }
+    const { error } = await supabase.from("service_statuses").insert({
+      type_id: service.id,
+      name: name.trim(),
+      name_en: nameEn.trim() || null,
+      color,
+      is_final: isFinal,
+      sort_order: list.length,
+    });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setName("");
+    setNameEn("");
+    setColor("muted");
+    setIsFinal(false);
+    toast.success("تمت إضافة الحالة");
+    onChanged();
+  }
+
+  async function removeStatus(id: string) {
+    const { error } = await supabase.from("service_statuses").delete().eq("id", id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("تم حذف الحالة");
+    onChanged();
+  }
+
+  async function move(s: ServiceStatus, dir: -1 | 1) {
+    const sorted = list.slice().sort((a, b) => a.sort_order - b.sort_order);
+    const idx = sorted.findIndex((x) => x.id === s.id);
+    const other = sorted[idx + dir];
+    if (!other) return;
+    await supabase.from("service_statuses").update({ sort_order: other.sort_order }).eq("id", s.id);
+    await supabase
+      .from("service_statuses")
+      .update({ sort_order: s.sort_order })
+      .eq("id", other.id);
+    onChanged();
+  }
+
+  return (
+    <Dialog open={!!service} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>
+            حالات الخدمة: {service ? localName(lang, service.name, service.name_en) : ""}
+          </DialogTitle>
+        </DialogHeader>
+
+        <p className="text-sm text-muted-foreground">
+          حدّد مراحل إجراءات هذه الخدمة بالترتيب. إذا لم تُضِف أي حالة، تُستخدم الحالات الافتراضية
+          للنظام.
+        </p>
+
+        <div className="space-y-2">
+          {list
+            .slice()
+            .sort((a, b) => a.sort_order - b.sort_order)
+            .map((s, i) => (
+              <div
+                key={s.id}
+                className="surface flex items-center justify-between gap-3 px-3 py-2"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="num text-xs text-muted-foreground">{i + 1}</span>
+                  <Badge label={(lang === "en" && s.name_en) || s.name} tone={colorTone(s.color)} />
+                  {s.is_final && (
+                    <span className="text-xs text-success">حالة نهائية (إنهاء المعاملة)</span>
+                  )}
+                </div>
+                {canManage && (
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => void move(s, -1)}>
+                      ↑
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => void move(s, 1)}>
+                      ↓
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="حذف"
+                      onClick={() => void removeStatus(s.id)}
+                    >
+                      <Trash2 className="size-4 text-destructive" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          {list.length === 0 && <EmptyState text="لا توجد حالات مخصصة لهذه الخدمة." />}
+        </div>
+
+        {canManage && (
+          <div className="grid gap-3 border-t pt-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>اسم الحالة *</Label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="مثال: بانتظار التوقيع"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>الاسم بالإنجليزية</Label>
+              <Input
+                dir="ltr"
+                value={nameEn}
+                onChange={(e) => setNameEn(e.target.value)}
+                placeholder="e.g. Awaiting signature"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>اللون</Label>
+              <Select value={color} onValueChange={setColor}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_COLORS.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-3">
+              <Switch id="status-final" checked={isFinal} onCheckedChange={setIsFinal} />
+              <Label htmlFor="status-final">حالة نهائية (تُعتبر المعاملة مكتملة)</Label>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          {canManage && (
+            <Button onClick={add}>
+              <Plus className="size-4" /> إضافة حالة
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 function avg(values: number[]): number {
   if (values.length === 0) return 0;

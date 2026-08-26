@@ -8,6 +8,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRole } from "@/hooks/useRole";
 import { PermissionsPanel } from "@/components/PermissionsPanel";
 import { OfficeSettingsCard } from "@/components/OfficeSettingsCard";
+import { EmailSettingsCard } from "@/components/EmailSettingsCard";
+import { NotificationLogCard } from "@/components/NotificationLogCard";
 import { canManageCatalog, ROLE_DESC, ROLE_LABELS, ROLE_TONE } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -115,6 +117,10 @@ function SettingsPage() {
       </div>
 
       {canManageCatalog(role) && <OfficeSettingsCard />}
+
+      {isAdmin && <EmailSettingsCard />}
+
+      <NotificationLogCard />
 
       {isAdmin && <PermissionsPanel />}
     </>

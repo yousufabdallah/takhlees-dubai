@@ -1,0 +1,4 @@
+id,name,account_type,bank_name,account_number,opening_balance,active,created_at
+9e4ccc1c-14c1-4319-b733-34cf975682fe,تحويل بنكي,cash,,,0.00,t,2026-08-19 20:07:40.897726+00
+269ea517-ff40-45a3-bbbc-68fecfc4ca3a,كاش,cash,,,0.00,t,2026-08-19 20:07:47.435484+00
+1cd4ecef-1ab1-4c67-ae3d-08b7038a5a77,فيزا,cash,,,0.00,t,2026-08-19 20:07:55.011644+00

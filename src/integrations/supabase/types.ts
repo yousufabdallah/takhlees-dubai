@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -166,6 +166,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      email_settings: {
+        Row: {
+          api_key: string | null
+          created_at: string
+          enabled: boolean
+          from_email: string | null
+          from_name: string | null
+          id: string
+          notify_on_create: boolean
+          notify_on_status: boolean
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          api_key?: string | null
+          created_at?: string
+          enabled?: boolean
+          from_email?: string | null
+          from_name?: string | null
+          id?: string
+          notify_on_create?: boolean
+          notify_on_status?: boolean
+          provider?: string
+          updated_at?: string
+        }
+        Update: {
+          api_key?: string | null
+          created_at?: string
+          enabled?: boolean
+          from_email?: string | null
+          from_name?: string | null
+          id?: string
+          notify_on_create?: boolean
+          notify_on_status?: boolean
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       employees: {
         Row: {
@@ -446,6 +485,63 @@ export type Database = {
           },
         ]
       }
+      notification_log: {
+        Row: {
+          channel: string
+          client_id: string | null
+          created_at: string
+          created_by: string | null
+          error: string | null
+          id: string
+          kind: string
+          recipient: string | null
+          status: string
+          subject: string | null
+          transaction_id: string | null
+        }
+        Insert: {
+          channel?: string
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          id?: string
+          kind: string
+          recipient?: string | null
+          status: string
+          subject?: string | null
+          transaction_id?: string | null
+        }
+        Update: {
+          channel?: string
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          id?: string
+          kind?: string
+          recipient?: string | null
+          status?: string
+          subject?: string | null
+          transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_log_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_log_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       office_settings: {
         Row: {
           address: string | null
@@ -607,6 +703,50 @@ export type Database = {
         }
         Relationships: []
       }
+      service_statuses: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          is_final: boolean
+          name: string
+          name_en: string | null
+          sort_order: number
+          type_id: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_final?: boolean
+          name: string
+          name_en?: string | null
+          sort_order?: number
+          type_id: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_final?: boolean
+          name?: string
+          name_en?: string | null
+          sort_order?: number
+          type_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_statuses_type_id_fkey"
+            columns: ["type_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suppliers: {
         Row: {
           balance: number
@@ -646,6 +786,7 @@ export type Database = {
           gov_fee: number
           id: string
           office_fee: number
+          qty: number
           sort_order: number
           transaction_id: string
           type_id: string | null
@@ -660,6 +801,7 @@ export type Database = {
           gov_fee?: number
           id?: string
           office_fee?: number
+          qty?: number
           sort_order?: number
           transaction_id: string
           type_id?: string | null
@@ -674,6 +816,7 @@ export type Database = {
           gov_fee?: number
           id?: string
           office_fee?: number
+          qty?: number
           sort_order?: number
           transaction_id?: string
           type_id?: string | null

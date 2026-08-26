@@ -1,12 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Check, ChevronsUpDown, Plus, Search, Trash2 } from "lucide-react";
+import { Check, ChevronsUpDown, Mail, MessageCircle, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { notifyClient, logWhatsapp } from "@/lib/notifications.functions";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useInvalidate, useSb } from "@/lib/queries";
 import { Badge, EmptyState, PageHeader, StatCard, TableWrap, Td, Th } from "@/components/ui-kit";
-import { dateAr, localName, money, PAYMENT_METHODS, TRX_STATUS, TRX_STATUS_TONE } from "@/lib/domain";
+import { dateAr, localName, money, PAYMENT_METHODS, TRX_STATUS } from "@/lib/domain";
 import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +40,12 @@ import {
 } from "@/components/ui/command";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import {
+  isFinalStatus,
+  statusLabel,
+  statusOptions,
+  type ServiceStatus,
+} from "@/lib/service-statuses";
 
 export const Route = createFileRoute("/_authenticated/transactions")({
   head: () => ({
@@ -61,6 +69,7 @@ type Trx = {
   type_name_en: string | null;
   gov_entity: string | null;
   gov_entity_en: string | null;
+  type_id: string | null;
   status: string;
   opened_at: string;
   completed_at: string | null;
@@ -71,8 +80,9 @@ type Trx = {
   payment_method: string;
   gov_fee_paid: boolean;
   gov_fee_paid_at: string | null;
-  clients: { name: string } | null;
+  clients: { name: string; email: string | null; phone: string | null } | null;
   employees: { name: string } | null;
+  notes: string | null;
 };
 
 type Item = {
@@ -85,6 +95,7 @@ type Item = {
   type_name_en: string;
   gov_fee: string;
   office_fee: string;
+  qty: string;
 };
 
 const EMPTY = {
@@ -110,6 +121,8 @@ function TransactionsPage() {
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [items, setItems] = useState<Item[]>([]);
   const [clientOpen, setClientOpen] = useState(false);
+  const notify = useServerFn(notifyClient);
+  const logWa = useServerFn(logWhatsapp);
 
 
 
@@ -117,7 +130,7 @@ function TransactionsPage() {
     supabase
       .from("transactions")
       .select(
-        "id, ref_no, type_name, type_name_en, gov_entity, gov_entity_en, status, opened_at, completed_at, gov_fee, office_fee, discount, vat_rate, payment_method, gov_fee_paid, gov_fee_paid_at, clients(name), employees(name)",
+        "id, ref_no, type_id, type_name, type_name_en, gov_entity, gov_entity_en, status, opened_at, completed_at, gov_fee, office_fee, discount, vat_rate, payment_method, gov_fee_paid, gov_fee_paid_at, notes, clients(name, email, phone), employees(name)",
       )
       .order("created_at", { ascending: false }),
   );
@@ -150,6 +163,13 @@ function TransactionsPage() {
   const employees = useSb<{ id: string; name: string }[]>(["employees-min"], () =>
     supabase.from("employees").select("id, name").eq("active", true),
   );
+  const serviceStatuses = useSb<ServiceStatus[]>(["service-statuses"], () =>
+    supabase
+      .from("service_statuses")
+      .select("id, type_id, name, name_en, color, sort_order, is_final")
+      .order("sort_order"),
+  );
+  const statusList = serviceStatuses.data ?? [];
 
   async function save() {
     if (!form.client_id || items.length === 0) {
@@ -203,6 +223,7 @@ function TransactionsPage() {
         type_name_en: it.type_name_en || null,
         gov_fee: Number(it.gov_fee) || 0,
         office_fee: Number(it.office_fee) || 0,
+        qty: Math.max(1, Number(it.qty) || 1),
         sort_order: idx,
       })),
     );
@@ -211,6 +232,7 @@ function TransactionsPage() {
       return;
     }
     toast.success("تم تسجيل المعاملة وإنشاء فاتورتها تلقائياً");
+    void sendNotice(data.id, "created", "");
     setOpen(false);
     setForm(EMPTY);
     setDraft(EMPTY_DRAFT);
@@ -221,7 +243,7 @@ function TransactionsPage() {
 
   async function setStatus(t: Trx, status: string) {
     const patch: { status: string; completed_at?: string } = { status };
-    if (status === "completed" && !t.completed_at)
+    if (isFinalStatus(status, statusList) && !t.completed_at)
       patch.completed_at = new Date().toISOString().slice(0, 10);
     const { error } = await supabase.from("transactions").update(patch).eq("id", t.id);
     if (error) {
@@ -229,6 +251,40 @@ function TransactionsPage() {
       return;
     }
     invalidate("transactions", "dash-trx");
+    void sendNotice(t.id, "status", statusLabel(status, statusList, lang).label);
+  }
+
+  async function sendNotice(id: string, kind: "created" | "status", statusText: string) {
+    try {
+      const res = await notify({ data: { transactionId: id, kind, statusText } });
+      if (res.sent) toast.success(`تم إرسال إشعار بريدي إلى ${res.to}`);
+      else if (res.reason === "no_email") toast.info("لا يوجد بريد مسجّل لهذا العميل — لم يُرسل إشعار");
+      else if (res.reason === "error") toast.error(`تعذّر إرسال الإشعار: ${res.error ?? ""}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "تعذّر إرسال الإشعار");
+    }
+    invalidate("notification-log");
+  }
+
+  function waLink(t: Trx, statusText: string) {
+    const phone = (t.clients?.phone ?? "").replace(/[^0-9]/g, "");
+    const text = statusText
+      ? `عزيزنا ${t.clients?.name ?? ""}، تم تحديث حالة معاملتكم ${t.type_name} (رقم ${t.ref_no}) إلى: ${statusText}.`
+      : `عزيزنا ${t.clients?.name ?? ""}، تم تسجيل معاملتكم ${t.type_name} برقم مرجعي ${t.ref_no}.`;
+    return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+  }
+
+  function openWhatsapp(t: Trx) {
+    const phone = (t.clients?.phone ?? "").replace(/[^0-9]/g, "");
+    if (!phone) {
+      toast.error("لا يوجد رقم هاتف مسجّل لهذا العميل");
+      return;
+    }
+    const label = statusLabel(t.status, statusList, lang).label;
+    window.open(waLink(t, label), "_blank", "noopener");
+    void logWa({ data: { transactionId: t.id, kind: "status", recipient: phone } })
+      .then(() => invalidate("notification-log"))
+      .catch(() => {});
   }
 
   async function toggleGovPaid(t: Trx, paid: boolean) {
@@ -270,6 +326,7 @@ function TransactionsPage() {
         type_name_en: t.name_en ?? "",
         gov_fee: String(t.default_gov_fee),
         office_fee: String(t.default_office_fee),
+        qty: "1",
       },
     ]);
     setDraft({ entity_id: entityId, type_id: "" });
@@ -290,13 +347,24 @@ function TransactionsPage() {
     [types.data, draft.entity_id],
   );
   const totals = useMemo(() => {
-    const gov = items.reduce((s, i) => s + (Number(i.gov_fee) || 0), 0);
-    const office = items.reduce((s, i) => s + (Number(i.office_fee) || 0), 0);
+    const q = (i: Item) => Math.max(1, Number(i.qty) || 1);
+    const gov = items.reduce((s, i) => s + (Number(i.gov_fee) || 0) * q(i), 0);
+    const office = items.reduce((s, i) => s + (Number(i.office_fee) || 0) * q(i), 0);
     const discount = Number(form.discount) || 0;
     const vat = ((office - discount) * (Number(form.vat_rate) || 0)) / 100;
     return { gov, office, total: gov + office - discount + vat };
   }, [items, form.discount, form.vat_rate]);
   const selectedClient = (clients.data ?? []).find((c) => c.id === form.client_id);
+  const formTypeId = items.length === 1 ? items[0]!.type_id || null : null;
+  const formStatusOptions = useMemo(
+    () => statusOptions(formTypeId, statusList, lang),
+    [formTypeId, statusList, lang],
+  );
+  useEffect(() => {
+    if (formStatusOptions.length === 0) return;
+    if (!formStatusOptions.some((o) => o.value === form.status))
+      setForm((f) => ({ ...f, status: formStatusOptions[0]!.value }));
+  }, [formStatusOptions, form.status]);
 
 
   return (
@@ -426,7 +494,7 @@ function TransactionsPage() {
                     </p>
                   )}
                   {items.map((it) => (
-                    <div key={it.key} className="surface grid gap-2 p-3 sm:grid-cols-[1fr_auto_auto_auto]">
+                    <div key={it.key} className="surface grid gap-2 p-3 sm:grid-cols-[1fr_auto_auto_auto_auto]">
                       <div>
                         <div className="text-sm font-medium">
                           {localName(lang, it.type_name, it.type_name_en)}
@@ -434,6 +502,17 @@ function TransactionsPage() {
                         <div className="text-xs text-muted-foreground">
                           {localName(lang, it.gov_entity, it.gov_entity_en)}
                         </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">{lang === "en" ? "QTY" : "العدد"}</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          dir="ltr"
+                          className="h-8 w-20"
+                          value={it.qty}
+                          onChange={(e) => updateItem(it.key, { qty: e.target.value })}
+                        />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">رسوم حكومية</Label>
@@ -501,9 +580,9 @@ function TransactionsPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(TRX_STATUS).map(([k, v]) => (
-                        <SelectItem key={k} value={k}>
-                          {v}
+                      {formStatusOptions.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -616,6 +695,11 @@ function TransactionsPage() {
                 {v}
               </SelectItem>
             ))}
+            {statusList.map((s) => (
+              <SelectItem key={s.id} value={`cs:${s.id}`}>
+                {(lang === "en" && s.name_en) || s.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -632,6 +716,7 @@ function TransactionsPage() {
             <Th>دفع الرسوم</Th>
             <Th>المكتب</Th>
             <Th>الحالة</Th>
+            <Th>إشعار</Th>
           </tr>
         </thead>
         <tbody>
@@ -669,19 +754,43 @@ function TransactionsPage() {
               <Td>
                 <Select value={t.status} onValueChange={(v) => setStatus(t, v)}>
                   <SelectTrigger className="h-8 w-40">
-                    <SelectValue />
+                    <SelectValue>
+                      {statusLabel(t.status, statusList, lang).label}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(TRX_STATUS).map(([k, v]) => (
-                      <SelectItem key={k} value={k}>
-                        {v}
+                    {statusOptions(t.type_id, statusList, lang).map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <span className="sr-only">
-                  <Badge label={TRX_STATUS[t.status] ?? ""} tone={TRX_STATUS_TONE[t.status]} />
+                  <Badge {...statusLabel(t.status, statusList, lang)} />
                 </span>
+              </Td>
+              <Td>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1 px-2"
+                    onClick={() => openWhatsapp(t)}
+                  >
+                    <MessageCircle className="size-4" /> واتساب
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 gap-1 px-2"
+                    onClick={() =>
+                      sendNotice(t.id, "status", statusLabel(t.status, statusList, lang).label)
+                    }
+                  >
+                    <Mail className="size-4" />
+                  </Button>
+                </div>
               </Td>
             </tr>
           ))}

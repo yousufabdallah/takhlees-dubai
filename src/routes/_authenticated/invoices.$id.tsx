@@ -116,7 +116,7 @@ function InvoiceDetail() {
   const trxItems = useSb<PrintItem[]>(["trx-items", trxId ?? "none"], () =>
     supabase
       .from("transaction_items")
-      .select("id, gov_entity, gov_entity_en, type_name, type_name_en, gov_fee, office_fee")
+      .select("id, gov_entity, gov_entity_en, type_name, type_name_en, gov_fee, office_fee, qty")
       .eq("transaction_id", trxId ?? "00000000-0000-0000-0000-000000000000")
       .order("sort_order"),
   );

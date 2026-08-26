@@ -1,0 +1,1 @@
+ALTER TABLE public.transaction_items ADD COLUMN IF NOT EXISTS qty numeric NOT NULL DEFAULT 1;

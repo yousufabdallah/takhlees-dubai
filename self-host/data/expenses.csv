@@ -1,0 +1,3 @@
+id,category,description,amount,expense_date,payment_method,account_id,supplier_id,employee_id,receipt_url,created_by,created_at
+c73fb2c5-8192-40f0-84dd-6d9785216de8,rent,,11812.00,2026-08-10,card,9e4ccc1c-14c1-4319-b733-34cf975682fe,,8cd2f5d7-7e3e-458f-b1dd-e414eb1051f5,,,2026-08-23 17:02:12.265925+00
+72cded51-6963-49fb-a3e3-24d515288391,rent,,1000.00,2026-08-01,transfer,9e4ccc1c-14c1-4319-b733-34cf975682fe,,8cd2f5d7-7e3e-458f-b1dd-e414eb1051f5,,,2026-08-23 17:02:45.990713+00
