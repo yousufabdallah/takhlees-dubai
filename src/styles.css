@@ -4,6 +4,40 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@media print {
+  @page {
+    size: A4;
+    margin: 8mm;
+  }
+
+  html,
+  body {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: 'Cairo', sans-serif, Arial, Helvetica;
+    overflow: visible !important;
+  }
+
+  .pi-footer,
+  footer {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .pi-sheet,
+  .pi-repeat-header,
+  .pi-footer {
+    page-break-before: auto;
+    page-break-after: auto;
+    break-before: auto;
+    break-after: auto;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
+
+
 @theme inline {
   --font-sans: "Cairo", ui-sans-serif, system-ui, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
