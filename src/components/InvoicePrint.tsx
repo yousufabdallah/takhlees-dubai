@@ -37,6 +37,7 @@ export type PrintItem = {
   type_name_en?: string | null;
   gov_fee: number;
   office_fee: number;
+  qty?: number | null; // تمت إضافة العدد هنا
 };
 
 export type PrintPayment = {
@@ -73,6 +74,7 @@ const T = {
     trx: "بيانات المعاملة",
     idx: "#",
     item: "البيان",
+    qty: "العدد", // تمت إضافة الترجمة العربية
     amount: "المبلغ",
     govLine: "رسوم حكومية (أمانات تُدفع للجهات الحكومية)",
     officeLine: "أتعاب المكتب",
@@ -108,6 +110,7 @@ const T = {
     trx: "Transaction details",
     idx: "#",
     item: "Description",
+    qty: "QTY", // تمت إضافة الترجمة الإنجليزية
     amount: "Amount",
     govLine: "Government fees (paid directly to authorities)",
     officeLine: "Service fees",
@@ -217,6 +220,7 @@ export function InvoicePrint({
     service: string;
     gov_fee: number;
     office_fee: number;
+    qty: number; // تمت الإضافة هنا لتتبع الكمية لكل صف
   };
 
   const groups: {
@@ -256,6 +260,7 @@ export function InvoicePrint({
       service,
       gov_fee: Number(item.gov_fee) || 0,
       office_fee: Number(item.office_fee) || 0,
+      qty: Math.max(1, Number(item.qty ?? 1) || 1), // حساب العدد وتأكيد أن يكون 1 على الأقل
     });
   }
 
@@ -274,6 +279,7 @@ export function InvoicePrint({
         index: string;
         label: string;
         amount: number;
+        qty?: number; // تمت الإضافة لعرضه في الجدول
       };
 
   const displayRows: DisplayRow[] = [];
@@ -295,7 +301,8 @@ export function InvoicePrint({
           index,
           label:
             `${row.service} — ${t.officeLine}`,
-          amount: row.office_fee,
+          amount: row.office_fee * row.qty, // ضرب المبلغ في العدد
+          qty: row.qty, // تمرير العدد
         });
 
         if (Number(row.gov_fee) > 0) {
@@ -304,7 +311,8 @@ export function InvoicePrint({
             index: "",
             label:
               `${row.service} — ${t.govLine}`,
-            amount: row.gov_fee,
+            amount: row.gov_fee * row.qty, // ضرب المبلغ في العدد
+            qty: row.qty, // تمرير العدد
           });
         }
       });
@@ -316,6 +324,7 @@ export function InvoicePrint({
         index: "1",
         label: t.govLine,
         amount: invoice.gov_fees,
+        qty: 1, // كمية افتراضية في حال عدم وجود تفاصيل
       },
       {
         kind: "fee",
@@ -323,6 +332,7 @@ export function InvoicePrint({
         label:
           `${t.officeLine} — ${serviceName}`,
         amount: invoice.office_fees,
+        qty: 1, // كمية افتراضية
       },
     );
   }
@@ -331,14 +341,6 @@ export function InvoicePrint({
      PAGE SPLITTING
      ========================================================= */
 
-  /*
-   * React is responsible for page splitting.
-   *
-   * Each .pi-sheet becomes exactly one A4 page.
-   *
-   * Keep this number conservative because the header,
-   * totals and footer also consume physical page space.
-   */
   const rowLimit = 10;
 
   const itemPages = Array.from(
@@ -606,6 +608,11 @@ export function InvoicePrint({
                         {t.item}
                       </th>
 
+                      {/* تمت إضافة رأس عمود العدد هنا */}
+                      <th>
+                        {t.qty}
+                      </th>
+
                       <th>
                         {t.amount}
                       </th>
@@ -626,8 +633,9 @@ export function InvoicePrint({
                                 {row.index}
                               </td>
 
+                              {/* تم تغيير colSpan من 2 إلى 3 ليتناسب مع الأعمدة الجديدة */}
                               <td
-                                colSpan={2}
+                                colSpan={3}
                                 className="pi-entity-name"
                               >
                                 {row.entity}
@@ -646,6 +654,11 @@ export function InvoicePrint({
 
                             <td className="pi-fee-label">
                               {row.label}
+                            </td>
+
+                            {/* تمت إضافة خلية عرض قيمة العدد هنا */}
+                            <td className="num">
+                              {row.qty ?? 1}
                             </td>
 
                             <td className="num">
