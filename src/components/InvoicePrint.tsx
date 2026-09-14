@@ -37,7 +37,7 @@ export type PrintItem = {
   type_name_en?: string | null;
   gov_fee: number;
   office_fee: number;
-  qty?: number | null; // تمت إضافة العدد هنا
+  qty?: number | null;
 };
 
 export type PrintPayment = {
@@ -74,7 +74,7 @@ const T = {
     trx: "بيانات المعاملة",
     idx: "#",
     item: "البيان",
-    qty: "العدد", // تمت إضافة الترجمة العربية
+    qty: "العدد",
     amount: "المبلغ",
     govLine: "رسوم حكومية (أمانات تُدفع للجهات الحكومية)",
     officeLine: "أتعاب المكتب",
@@ -110,7 +110,7 @@ const T = {
     trx: "Transaction details",
     idx: "#",
     item: "Description",
-    qty: "QTY", // تمت إضافة الترجمة الإنجليزية
+    qty: "QTY",
     amount: "Amount",
     govLine: "Government fees (paid directly to authorities)",
     officeLine: "Service fees",
@@ -220,7 +220,7 @@ export function InvoicePrint({
     service: string;
     gov_fee: number;
     office_fee: number;
-    qty: number; // تمت الإضافة هنا لتتبع الكمية لكل صف
+    qty: number;
   };
 
   const groups: {
@@ -260,7 +260,10 @@ export function InvoicePrint({
       service,
       gov_fee: Number(item.gov_fee) || 0,
       office_fee: Number(item.office_fee) || 0,
-      qty: Math.max(1, Number(item.qty ?? 1) || 1), // حساب العدد وتأكيد أن يكون 1 على الأقل
+      qty: Math.max(
+        1,
+        Number(item.qty ?? 1) || 1
+      ),
     });
   }
 
@@ -279,7 +282,7 @@ export function InvoicePrint({
         index: string;
         label: string;
         amount: number;
-        qty?: number; // تمت الإضافة لعرضه في الجدول
+        qty?: number;
       };
 
   const displayRows: DisplayRow[] = [];
@@ -301,8 +304,8 @@ export function InvoicePrint({
           index,
           label:
             `${row.service} — ${t.officeLine}`,
-          amount: row.office_fee * row.qty, // ضرب المبلغ في العدد
-          qty: row.qty, // تمرير العدد
+          amount: row.office_fee * row.qty,
+          qty: row.qty,
         });
 
         if (Number(row.gov_fee) > 0) {
@@ -311,8 +314,8 @@ export function InvoicePrint({
             index: "",
             label:
               `${row.service} — ${t.govLine}`,
-            amount: row.gov_fee * row.qty, // ضرب المبلغ في العدد
-            qty: row.qty, // تمرير العدد
+            amount: row.gov_fee * row.qty,
+            qty: row.qty,
           });
         }
       });
@@ -324,7 +327,7 @@ export function InvoicePrint({
         index: "1",
         label: t.govLine,
         amount: invoice.gov_fees,
-        qty: 1, // كمية افتراضية في حال عدم وجود تفاصيل
+        qty: 1,
       },
       {
         kind: "fee",
@@ -332,7 +335,7 @@ export function InvoicePrint({
         label:
           `${t.officeLine} — ${serviceName}`,
         amount: invoice.office_fees,
-        qty: 1, // كمية افتراضية
+        qty: 1,
       },
     );
   }
@@ -341,7 +344,9 @@ export function InvoicePrint({
      PAGE SPLITTING
      ========================================================= */
 
-  const rowLimit = 10;
+  // Reduced from 10 to 8 to leave enough space
+  // for totals, payments, notes and footer.
+  const rowLimit = 8;
 
   const itemPages = Array.from(
     {
@@ -379,7 +384,9 @@ export function InvoicePrint({
 
           <div className="text-xs text-gray-600 mt-1.5 space-y-0.5 leading-tight">
             {office?.phone && (
-              <p>{t.phone}: {office.phone}</p>
+              <p>
+                {t.phone}: {office.phone}
+              </p>
             )}
 
             {office?.address && (
@@ -387,17 +394,29 @@ export function InvoicePrint({
             )}
 
             <p>
-              {office?.email && <span>{office.email} | </span>}
-              {office?.website && <span>{office.website}</span>}
+              {office?.email && (
+                <span>
+                  {office.email} |{" "}
+                </span>
+              )}
+
+              {office?.website && (
+                <span>{office.website}</span>
+              )}
             </p>
 
             <p>
               {office?.license_no && (
-                <span>{t.license}: {office.license_no} </span>
+                <span>
+                  {t.license}:{" "}
+                  {office.license_no}{" "}
+                </span>
               )}
 
               {office?.trn && (
-                <span>| {t.trn}: {office.trn}</span>
+                <span>
+                  | {t.trn}: {office.trn}
+                </span>
               )}
             </p>
           </div>
@@ -411,18 +430,47 @@ export function InvoicePrint({
           />
         </div>
       </header>
+
       <div className="pi-doc">
-        <p className="pi-doc-title">{t.docTitle}</p>
-        <p className="pi-doc-title-en">{t.docTitleAlt}</p>
+        <p className="pi-doc-title">
+          {t.docTitle}
+        </p>
+
+        <p className="pi-doc-title-en">
+          {t.docTitleAlt}
+        </p>
+
         <table className="pi-doc-table">
           <tbody>
-            <tr><th>{t.invoiceNo}</th><td className="num">{invoice.invoice_no}</td></tr>
-            <tr><th>{t.issueDate}</th><td className="num">{dateAr(invoice.issue_date)}</td></tr>
-            <tr><th>{t.dueDate}</th><td className="num">{dateAr(invoice.due_date)}</td></tr>
-            <tr><th>{t.status}</th><td>{statusLabel}</td></tr>
+            <tr>
+              <th>{t.invoiceNo}</th>
+              <td className="num">
+                {invoice.invoice_no}
+              </td>
+            </tr>
+
+            <tr>
+              <th>{t.issueDate}</th>
+              <td className="num">
+                {dateAr(invoice.issue_date)}
+              </td>
+            </tr>
+
+            <tr>
+              <th>{t.dueDate}</th>
+              <td className="num">
+                {dateAr(invoice.due_date)}
+              </td>
+            </tr>
+
+            <tr>
+              <th>{t.status}</th>
+              <td>{statusLabel}</td>
+            </tr>
           </tbody>
         </table>
       </div>
+
       <div className="pi-rule" />
     </div>
   );
@@ -433,9 +481,7 @@ export function InvoicePrint({
 
   const footer = (isLast: boolean) => (
     <footer className="pi-footer pi-repeat-footer">
-
       <div className="flex items-center justify-between w-full">
-
         <div
           className="
             flex-1
@@ -446,7 +492,6 @@ export function InvoicePrint({
             rtl:text-right
           "
         >
-
           {office?.invoice_footer && (
             <p>
               {office.invoice_footer}
@@ -460,7 +505,6 @@ export function InvoicePrint({
           <p className="mt-1 font-semibold text-gray-400">
             {t.issuedBy(name)}
           </p>
-
         </div>
 
         <div
@@ -472,7 +516,6 @@ export function InvoicePrint({
             items-center
           "
         >
-
           <img
             src="/stamp.jpeg"
             alt="Stamp"
@@ -501,11 +544,8 @@ export function InvoicePrint({
               {t.officeSign}
             </span>
           )}
-
         </div>
-
       </div>
-
     </footer>
   );
 
@@ -522,17 +562,14 @@ export function InvoicePrint({
      ========================================================= */
 
   return createPortal(
-
     <div
       className="print-invoice hidden"
       aria-hidden
       dir={en ? "ltr" : "rtl"}
       lang={lang}
     >
-
       {itemPages.map(
         (pageRows, pageIndex) => {
-
           const firstPage =
             pageIndex === 0;
 
@@ -545,17 +582,14 @@ export function InvoicePrint({
               className="pi-sheet"
               key={`page-${pageIndex}`}
             >
-
               {/* HEADER */}
               {header}
 
               {/* CONTENT */}
               <main className="pi-content">
-
                 {/* CLIENT + TRANSACTION */}
                 {firstPage && (
                   <section className="pi-parties">
-
                     <div>
                       <h2>
                         {t.client}
@@ -591,13 +625,11 @@ export function InvoicePrint({
                         {entityName}
                       </p>
                     </div>
-
                   </section>
                 )}
 
                 {/* ITEMS */}
                 <table className="pi-table">
-
                   <thead>
                     <tr>
                       <th>
@@ -608,7 +640,6 @@ export function InvoicePrint({
                         {t.item}
                       </th>
 
-                      {/* تمت إضافة رأس عمود العدد هنا */}
                       <th>
                         {t.qty}
                       </th>
@@ -620,11 +651,11 @@ export function InvoicePrint({
                   </thead>
 
                   <tbody>
-
                     {pageRows.map(
                       (row, rowIndex) => {
-
-                        if (row.kind === "entity") {
+                        if (
+                          row.kind === "entity"
+                        ) {
                           return (
                             <tr
                               key={`entity-${pageIndex}-${rowIndex}`}
@@ -633,7 +664,6 @@ export function InvoicePrint({
                                 {row.index}
                               </td>
 
-                              {/* تم تغيير colSpan من 2 إلى 3 ليتناسب مع الأعمدة الجديدة */}
                               <td
                                 colSpan={3}
                                 className="pi-entity-name"
@@ -656,7 +686,6 @@ export function InvoicePrint({
                               {row.label}
                             </td>
 
-                            {/* تمت إضافة خلية عرض قيمة العدد هنا */}
                             <td className="num">
                               {row.qty ?? 1}
                             </td>
@@ -668,22 +697,16 @@ export function InvoicePrint({
                         );
                       },
                     )}
-
                   </tbody>
-
                 </table>
 
                 {/* LAST PAGE ONLY */}
                 {lastPage && (
                   <>
-
                     {/* TOTALS */}
                     <div className="pi-totals">
-
                       <table>
-
                         <tbody>
-
                           <tr>
                             <th>
                               {t.subtotal}
@@ -691,8 +714,12 @@ export function InvoicePrint({
 
                             <td className="num">
                               {amt(
-                                Number(invoice.gov_fees) +
-                                Number(invoice.office_fees)
+                                Number(
+                                  invoice.gov_fees
+                                ) +
+                                  Number(
+                                    invoice.office_fees
+                                  )
                               )}
                             </td>
                           </tr>
@@ -703,7 +730,9 @@ export function InvoicePrint({
                             </th>
 
                             <td className="num">
-                              {amt(invoice.discount)}
+                              {amt(
+                                invoice.discount
+                              )}
                             </td>
                           </tr>
 
@@ -758,26 +787,20 @@ export function InvoicePrint({
                               )}
                             </td>
                           </tr>
-
                         </tbody>
-
                       </table>
-
                     </div>
 
                     {/* PAYMENTS */}
                     {payments.length > 0 && (
                       <>
-
                         <h2 className="pi-section">
                           {t.paymentsTitle}
                         </h2>
 
                         <table className="pi-table">
-
                           <thead>
                             <tr>
-
                               <th>
                                 {t.date}
                               </th>
@@ -793,18 +816,15 @@ export function InvoicePrint({
                               <th>
                                 {t.reference}
                               </th>
-
                             </tr>
                           </thead>
 
                           <tbody>
-
                             {payments.map(
                               (payment) => (
                                 <tr
                                   key={payment.id}
                                 >
-
                                   <td className="num">
                                     {dateAr(
                                       payment.paid_at
@@ -827,39 +847,39 @@ export function InvoicePrint({
                                     {payment.reference ??
                                       t.dash}
                                   </td>
-
                                 </tr>
                               ),
                             )}
-
                           </tbody>
-
                         </table>
-
                       </>
                     )}
 
                     {/* NOTES */}
                     {invoice.notes && (
-                      <p className="pi-notes">
-                        {t.notes}:{" "}
-                        {invoice.notes}
-                      </p>
-                    )}
+                      <div
+                        className="pi-notes"
+                        role="note"
+                      >
+                        <span className="pi-notes-title">
+                          {t.notes}:
+                        </span>
 
+                        <span className="pi-notes-text">
+                          {invoice.notes}
+                        </span>
+                      </div>
+                    )}
                   </>
                 )}
-
               </main>
 
               {/* FOOTER */}
               {footer(lastPage)}
-
             </section>
           );
         },
       )}
-
     </div>,
 
     document.body,
