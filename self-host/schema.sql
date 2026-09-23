@@ -1348,3 +1348,31 @@ FOR EACH ROW EXECUTE FUNCTION public.require_active_account();
 DROP TRIGGER IF EXISTS transfers_require_active_account ON public.transfers;
 CREATE TRIGGER transfers_require_active_account BEFORE INSERT OR UPDATE ON public.transfers
 FOR EACH ROW EXECUTE FUNCTION public.require_active_account();
+-- ---------- 20260925120000_withdrawals_insert_finance_only.sql ----------
+-- Withdrawals: only admins and accountants may create them.
+--
+-- The original policy (migration 20260820040602) was WITH CHECK (true), so any signed-in
+-- user - including staff - could record a withdrawal through the Supabase API, even though
+-- the only UI that creates withdrawals is the Treasury page (admin/accountant only).
+-- This aligns INSERT with the existing UPDATE/DELETE policies. SELECT, UPDATE and DELETE are
+-- unchanged.
+
+DROP POLICY IF EXISTS "withdrawals_insert" ON public.withdrawals;
+
+CREATE POLICY "withdrawals_insert" ON public.withdrawals
+FOR INSERT TO authenticated
+WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin','accountant']::app_role[]));
+-- ---------- 20260926120000_withdrawals_select_finance_only.sql ----------
+-- Withdrawals: only admins and accountants may view them.
+--
+-- The original policy (migration 20260820040602) was USING (true), so any signed-in user -
+-- including staff - could read every withdrawal (amounts, accounts, references, notes)
+-- through the Supabase API, although the only screen that shows withdrawals is the Treasury
+-- page (admin/accountant only). This aligns SELECT with the existing UPDATE/DELETE policies.
+-- INSERT, UPDATE and DELETE policies are unchanged.
+
+DROP POLICY IF EXISTS "withdrawals_select" ON public.withdrawals;
+
+CREATE POLICY "withdrawals_select" ON public.withdrawals
+FOR SELECT TO authenticated
+USING (private.has_any_role(auth.uid(), ARRAY['admin','accountant']::app_role[]));
