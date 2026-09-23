@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { ArrowDownToLine, ArrowLeftRight, Banknote, Plus, RotateCcw } from "lucide-react";
+import {
+  ArrowDownToLine,
+  ArrowLeftRight,
+  Banknote,
+  Loader2,
+  Pencil,
+  Plus,
+  Power,
+  RotateCcw,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +34,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useI18n } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/treasury")({
   head: () => ({
@@ -56,8 +76,8 @@ type Transfer = {
   amount: number;
   transfer_date: string;
   notes: string | null;
-  from: { name: string } | null;
-  to: { name: string } | null;
+  from: { name: string; active: boolean } | null;
+  to: { name: string; active: boolean } | null;
 };
 
 type Withdrawal = {
@@ -69,21 +89,39 @@ type Withdrawal = {
   gov_entity: string | null;
   reference: string | null;
   notes: string | null;
-  account: { name: string } | null;
+  account: { name: string; active: boolean } | null;
 };
+
+const EMPTY_ACC = {
+  name: "",
+  account_type: "cash",
+  bank_name: "",
+  account_number: "",
+  opening_balance: "0",
+};
+
+/** كل ما يعرض الحسابات أو أسماءها أو أرصدتها */
+const ACCOUNT_KEYS = [
+  "accounts",
+  "accounts-min",
+  "expenses",
+  "payments",
+  "transfers",
+  "withdrawals",
+];
 
 function TreasuryPage() {
   const invalidate = useInvalidate();
   const [accOpen, setAccOpen] = useState(false);
   const [trOpen, setTrOpen] = useState(false);
   const [wdOpen, setWdOpen] = useState(false);
-  const [acc, setAcc] = useState({
-    name: "",
-    account_type: "cash",
-    bank_name: "",
-    account_number: "",
-    opening_balance: "0",
-  });
+  const [acc, setAcc] = useState(EMPTY_ACC);
+  const { lang } = useI18n();
+  const tl = (ar: string, en: string) => (lang === "en" ? en : ar);
+  const [editingAcc, setEditingAcc] = useState<Account | null>(null);
+  const [savingAcc, setSavingAcc] = useState(false);
+  const [toggleAcc, setToggleAcc] = useState<Account | null>(null);
+  const [toggling, setToggling] = useState(false);
   const [tr, setTr] = useState({
     from_account_id: "",
     to_account_id: "",
@@ -128,7 +166,7 @@ function TreasuryPage() {
     supabase
       .from("withdrawals")
       .select(
-        "id, account_id, kind, amount, withdraw_date, gov_entity, reference, notes, account:account_id(name)",
+        "id, account_id, kind, amount, withdraw_date, gov_entity, reference, notes, account:account_id(name, active)",
       )
       .order("withdraw_date", { ascending: false }),
   );
@@ -137,7 +175,7 @@ function TreasuryPage() {
     supabase
       .from("transfers")
       .select(
-        "id, amount, transfer_date, notes, from:from_account_id(name), to:to_account_id(name)",
+        "id, amount, transfer_date, notes, from:from_account_id(name, active), to:to_account_id(name, active)",
       )
       .order("transfer_date", { ascending: false }),
   );
@@ -175,6 +213,23 @@ function TreasuryPage() {
   }
 
   const list = accounts.data ?? [];
+  // الحسابات الموقوفة تبقى في الأرصدة والسجلات، لكنها لا تُختار لحركات جديدة
+  const activeList = list.filter((a) => a.active);
+
+  /** للحساب حركات مالية؟ عندها يُقفل الرصيد الافتتاحي والنوع (تفرضه قاعدة البيانات أيضاً) */
+  function hasRecords(a: Account): boolean {
+    return (
+      (payments.data ?? []).some((p) => p.account_id === a.id) ||
+      (expenses.data ?? []).some((e) => e.account_id === a.id) ||
+      wdList.some((w) => w.account_id === a.id) ||
+      (transferSums.data ?? []).some((t) => t.from_account_id === a.id || t.to_account_id === a.id)
+    );
+  }
+
+  function accName(a: { name: string; active: boolean } | null | undefined): string {
+    if (!a) return "—";
+    return a.active ? a.name : `${a.name} (${tl("موقوف", "inactive")})`;
+  }
   const totalCash = list
     .filter((a) => a.account_type === "cash")
     .reduce((s, a) => s + balanceOf(a), 0);
@@ -182,10 +237,7 @@ function TreasuryPage() {
     .filter((a) => a.account_type === "bank")
     .reduce((s, a) => s + balanceOf(a), 0);
   const totalIn = (payments.data ?? []).reduce((s, p) => s + officeOf(p), 0);
-  const totalGov = (payments.data ?? []).reduce(
-    (s, p) => s + (split.get(p.id)?.gov ?? 0),
-    0,
-  );
+  const totalGov = (payments.data ?? []).reduce((s, p) => s + (split.get(p.id)?.gov ?? 0), 0);
   const govPaid = (govTrx.data ?? [])
     .filter((t) => t.gov_fee_paid)
     .reduce((s, t) => s + Number(t.gov_fee), 0);
@@ -228,8 +280,6 @@ function TreasuryPage() {
     invalidate("withdrawals", "accounts");
   }
 
-
-
   async function resetGovCounter() {
     const { error } = await supabase
       .from("transactions")
@@ -243,26 +293,119 @@ function TreasuryPage() {
     invalidate("gov-fees", "transactions");
   }
 
+  function openEditAccount(a: Account) {
+    setEditingAcc(a);
+    setAcc({
+      name: a.name,
+      account_type: a.account_type,
+      bank_name: a.bank_name ?? "",
+      account_number: a.account_number ?? "",
+      opening_balance: String(a.opening_balance),
+    });
+    setAccOpen(true);
+  }
+
+  function handleAccOpenChange(next: boolean) {
+    if (savingAcc) return;
+    setAccOpen(next);
+    // نموذج التعديل لا يبقى معبأً بعد الإغلاق حتى لا يختلط بحساب جديد
+    if (!next && editingAcc) {
+      setEditingAcc(null);
+      setAcc(EMPTY_ACC);
+    }
+  }
+
   async function saveAccount() {
     if (!acc.name.trim()) {
       toast.error("اسم الحساب مطلوب");
       return;
     }
-    const { error } = await supabase.from("accounts").insert({
-      name: acc.name.trim(),
-      account_type: acc.account_type,
-      bank_name: acc.bank_name || null,
-      account_number: acc.account_number || null,
-      opening_balance: Number(acc.opening_balance),
-    });
-    if (error) {
-      toast.error(error.message);
+    const opening = Number(acc.opening_balance);
+    if (!Number.isFinite(opening)) {
+      toast.error(tl("الرصيد الافتتاحي يجب أن يكون رقماً", "Opening balance must be a number"));
       return;
     }
-    toast.success("تمت إضافة الحساب");
-    setAccOpen(false);
-    setAcc({ name: "", account_type: "cash", bank_name: "", account_number: "", opening_balance: "0" });
-    invalidate("accounts", "accounts-min");
+    const details = {
+      name: acc.name.trim(),
+      bank_name: acc.bank_name || null,
+      account_number: acc.account_number || null,
+    };
+    const locked = !!editingAcc && hasRecords(editingAcc);
+    const payload = locked
+      ? details
+      : { ...details, account_type: acc.account_type, opening_balance: opening };
+    setSavingAcc(true);
+    try {
+      if (editingAcc) {
+        const { data, error } = await supabase
+          .from("accounts")
+          .update(payload)
+          .eq("id", editingAcc.id)
+          .select("id");
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+        if (!data || data.length === 0) {
+          toast.error(
+            tl(
+              "تعذّر التعديل: الحساب غير موجود أو لا تملك الصلاحية",
+              "Could not update: the account no longer exists or you are not allowed",
+            ),
+          );
+          return;
+        }
+        toast.success(tl("تم تحديث بيانات الحساب", "Account updated"));
+      } else {
+        const { error } = await supabase.from("accounts").insert(payload);
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+        toast.success("تمت إضافة الحساب");
+      }
+      setAccOpen(false);
+      setEditingAcc(null);
+      setAcc(EMPTY_ACC);
+      invalidate(...ACCOUNT_KEYS);
+    } finally {
+      setSavingAcc(false);
+    }
+  }
+
+  async function confirmToggle() {
+    if (!toggleAcc) return;
+    const target = toggleAcc;
+    setToggling(true);
+    try {
+      const { data, error } = await supabase
+        .from("accounts")
+        .update({ active: !target.active })
+        .eq("id", target.id)
+        .select("id");
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      if (!data || data.length === 0) {
+        toast.error(
+          tl(
+            "تعذّر التحديث: الحساب غير موجود أو لا تملك الصلاحية",
+            "Could not update: the account no longer exists or you are not allowed",
+          ),
+        );
+        return;
+      }
+      toast.success(
+        target.active
+          ? tl(`تم إيقاف الحساب ${target.name}`, `Account ${target.name} deactivated`)
+          : tl(`تمت إعادة تفعيل الحساب ${target.name}`, `Account ${target.name} reactivated`),
+      );
+      setToggleAcc(null);
+      invalidate(...ACCOUNT_KEYS);
+    } finally {
+      setToggling(false);
+    }
   }
 
   async function saveTransfer() {
@@ -305,7 +448,7 @@ function TreasuryPage() {
             <Button variant="secondary" onClick={() => setTrOpen(true)}>
               <ArrowLeftRight className="size-4" /> تحويل
             </Button>
-            <Button onClick={() => setAccOpen(true)}>
+            <Button onClick={() => handleAccOpenChange(true)}>
               <Plus className="size-4" /> حساب جديد
             </Button>
           </div>
@@ -372,8 +515,6 @@ function TreasuryPage() {
         <StatCard label="إجمالي السحوبات من الحسابات" value={money(totalWithdrawn)} />
       </div>
 
-
-
       <TableWrap>
         <thead>
           <tr>
@@ -383,6 +524,7 @@ function TreasuryPage() {
             <Th>الرصيد الافتتاحي</Th>
             <Th>الرصيد الحالي</Th>
             <Th>الحالة</Th>
+            <Th>{tl("إجراءات", "Actions")}</Th>
           </tr>
         </thead>
         <tbody>
@@ -402,13 +544,59 @@ function TreasuryPage() {
                   tone={a.active ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"}
                 />
               </Td>
+              <Td>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    onClick={() => openEditAccount(a)}
+                    aria-label={tl("تعديل الحساب", "Edit account")}
+                    title={tl("تعديل", "Edit")}
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    onClick={() => setToggleAcc(a)}
+                    aria-label={
+                      a.active
+                        ? tl("إيقاف الحساب", "Deactivate account")
+                        : tl("إعادة تفعيل الحساب", "Reactivate account")
+                    }
+                    title={a.active ? tl("إيقاف", "Deactivate") : tl("إعادة تفعيل", "Reactivate")}
+                  >
+                    <Power
+                      className={
+                        a.active ? "size-4 text-warning-foreground" : "size-4 text-success"
+                      }
+                    />
+                  </Button>
+                </div>
+              </Td>
             </tr>
           ))}
         </tbody>
       </TableWrap>
       {list.length === 0 && (
         <div className="surface mt-3">
-          <EmptyState text="لا توجد حسابات." />
+          {accounts.isLoading ? (
+            <div className="flex items-center justify-center gap-2 p-10 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              {tl("جارٍ تحميل الحسابات…", "Loading accounts…")}
+            </div>
+          ) : accounts.error ? (
+            <EmptyState
+              text={tl(
+                `تعذّر تحميل الحسابات: ${accounts.error.message}`,
+                `Could not load accounts: ${accounts.error.message}`,
+              )}
+            />
+          ) : (
+            <EmptyState text="لا توجد حسابات." />
+          )}
         </div>
       )}
 
@@ -427,8 +615,8 @@ function TreasuryPage() {
           {(transfers.data ?? []).map((t) => (
             <tr key={t.id} className="hover:bg-muted/40">
               <Td className="num">{dateAr(t.transfer_date)}</Td>
-              <Td>{t.from?.name ?? "—"}</Td>
-              <Td>{t.to?.name ?? "—"}</Td>
+              <Td>{accName(t.from)}</Td>
+              <Td>{accName(t.to)}</Td>
               <Td className="num font-medium">{money(t.amount)}</Td>
               <Td>{t.notes ?? "—"}</Td>
             </tr>
@@ -458,7 +646,7 @@ function TreasuryPage() {
           {wdList.map((w) => (
             <tr key={w.id} className="hover:bg-muted/40">
               <Td className="num">{dateAr(w.withdraw_date)}</Td>
-              <Td>{w.account?.name ?? "—"}</Td>
+              <Td>{accName(w.account)}</Td>
               <Td>
                 <Badge
                   label={w.kind === "gov_payment" ? "سداد رسوم حكومية" : "سحب نقدي"}
@@ -491,15 +679,12 @@ function TreasuryPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>الحساب *</Label>
-              <Select
-                value={wd.account_id}
-                onValueChange={(v) => setWd({ ...wd, account_id: v })}
-              >
+              <Select value={wd.account_id} onValueChange={(v) => setWd({ ...wd, account_id: v })}>
                 <SelectTrigger>
                   <SelectValue placeholder="اختر" />
                 </SelectTrigger>
                 <SelectContent>
-                  {list.map((a) => (
+                  {activeList.map((a) => (
                     <SelectItem key={a.id} value={a.id}>
                       {a.name}
                     </SelectItem>
@@ -546,13 +731,23 @@ function TreasuryPage() {
         </DialogContent>
       </Dialog>
 
-
-
-      <Dialog open={accOpen} onOpenChange={setAccOpen}>
+      <Dialog open={accOpen} onOpenChange={handleAccOpenChange}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>حساب جديد</DialogTitle>
+            <DialogTitle>
+              {editingAcc
+                ? tl(`تعديل الحساب ${editingAcc.name}`, `Edit account ${editingAcc.name}`)
+                : "حساب جديد"}
+            </DialogTitle>
           </DialogHeader>
+          {editingAcc && hasRecords(editingAcc) && (
+            <p className="surface bg-muted/40 p-3 text-xs text-muted-foreground">
+              {tl(
+                "على هذا الحساب حركات مالية مسجلة، لذلك لا يمكن تغيير نوعه أو رصيده الافتتاحي حتى لا تتغير الأرصدة السابقة.",
+                "This account has financial records, so its type and opening balance can't be changed without rewriting past balances.",
+              )}
+            </p>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5 sm:col-span-2">
               <Label>اسم الحساب *</Label>
@@ -563,6 +758,7 @@ function TreasuryPage() {
               <Select
                 value={acc.account_type}
                 onValueChange={(v) => setAcc({ ...acc, account_type: v })}
+                disabled={!!editingAcc && hasRecords(editingAcc)}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -583,6 +779,7 @@ function TreasuryPage() {
                 dir="ltr"
                 value={acc.opening_balance}
                 onChange={(e) => setAcc({ ...acc, opening_balance: e.target.value })}
+                disabled={!!editingAcc && hasRecords(editingAcc)}
               />
             </div>
             <div className="space-y-1.5">
@@ -602,7 +799,19 @@ function TreasuryPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={saveAccount}>حفظ</Button>
+            {editingAcc && (
+              <Button
+                variant="outline"
+                onClick={() => handleAccOpenChange(false)}
+                disabled={savingAcc}
+              >
+                {tl("إلغاء", "Cancel")}
+              </Button>
+            )}
+            <Button onClick={saveAccount} disabled={savingAcc}>
+              {savingAcc && <Loader2 className="size-4 animate-spin" />}
+              {editingAcc ? tl("حفظ التعديلات", "Save changes") : "حفظ"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -623,7 +832,7 @@ function TreasuryPage() {
                   <SelectValue placeholder="اختر" />
                 </SelectTrigger>
                 <SelectContent>
-                  {list.map((a) => (
+                  {activeList.map((a) => (
                     <SelectItem key={a.id} value={a.id}>
                       {a.name}
                     </SelectItem>
@@ -641,7 +850,7 @@ function TreasuryPage() {
                   <SelectValue placeholder="اختر" />
                 </SelectTrigger>
                 <SelectContent>
-                  {list.map((a) => (
+                  {activeList.map((a) => (
                     <SelectItem key={a.id} value={a.id}>
                       {a.name}
                     </SelectItem>
@@ -679,6 +888,70 @@ function TreasuryPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!toggleAcc}
+        onOpenChange={(v) => {
+          if (!v && !toggling) setToggleAcc(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {toggleAcc?.active
+                ? tl(`إيقاف الحساب ${toggleAcc.name}؟`, `Deactivate account ${toggleAcc.name}?`)
+                : tl(
+                    `إعادة تفعيل الحساب ${toggleAcc?.name ?? ""}؟`,
+                    `Reactivate account ${toggleAcc?.name ?? ""}?`,
+                  )}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                {toggleAcc?.active ? (
+                  <>
+                    <p>
+                      {tl(
+                        "لن يظهر الحساب في اختيار الدفعات والمصروفات والسحوبات والتحويلات الجديدة. تبقى كل الحركات السابقة عليه كما هي، ويبقى رصيده ضمن إجماليات الخزينة.",
+                        "The account will no longer be offered for new payments, expenses, withdrawals or transfers. All its past records stay as they are, and its balance stays in the treasury totals.",
+                      )}
+                    </p>
+                    {Math.abs(balanceOf(toggleAcc)) >= 0.005 && (
+                      <p className="surface bg-warning/10 p-3 text-warning-foreground">
+                        {tl(
+                          `تنبيه: رصيد هذا الحساب الحالي ${money(balanceOf(toggleAcc))}. لن تتمكن من تحويله أو السحب منه وهو موقوف؛ حوّل الرصيد أولاً إذا كنت تريد تصفيره.`,
+                          `Warning: this account's current balance is ${money(balanceOf(toggleAcc))}. You won't be able to transfer or withdraw it while the account is inactive; transfer the balance first if you want to empty it.`,
+                        )}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p>
+                    {tl(
+                      "سيعود الحساب متاحاً للاختيار في الدفعات والمصروفات والسحوبات والتحويلات الجديدة.",
+                      "The account will be available again for new payments, expenses, withdrawals and transfers.",
+                    )}
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={toggling}>{tl("إلغاء", "Cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={toggling}
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmToggle();
+              }}
+            >
+              {toggling && <Loader2 className="size-4 animate-spin" />}
+              {toggleAcc?.active
+                ? tl("إيقاف الحساب", "Deactivate")
+                : tl("إعادة التفعيل", "Reactivate")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
