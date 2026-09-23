@@ -733,3 +733,91 @@ USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::a
 WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role, 'staff'::app_role]));
 
 CREATE INDEX transaction_items_transaction_id_idx ON public.transaction_items(transaction_id);
+-- ---------- 20260825214552_cdf12758-e075-408e-bc97-17a5dff24a97.sql ----------
+CREATE TABLE public.service_statuses (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  type_id uuid NOT NULL REFERENCES public.transaction_types(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  name_en text,
+  color text NOT NULL DEFAULT 'muted',
+  sort_order integer NOT NULL DEFAULT 0,
+  is_final boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.service_statuses TO authenticated;
+GRANT ALL ON public.service_statuses TO service_role;
+
+ALTER TABLE public.service_statuses ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "service statuses read" ON public.service_statuses
+  FOR SELECT TO authenticated USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role, 'staff'::app_role]));
+CREATE POLICY "service statuses insert" ON public.service_statuses
+  FOR INSERT TO authenticated WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]));
+CREATE POLICY "service statuses update" ON public.service_statuses
+  FOR UPDATE TO authenticated USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role])) WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]));
+CREATE POLICY "service statuses delete" ON public.service_statuses
+  FOR DELETE TO authenticated USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]));
+
+CREATE INDEX service_statuses_type_idx ON public.service_statuses(type_id, sort_order);
+
+CREATE TRIGGER service_statuses_updated BEFORE UPDATE ON public.service_statuses
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+-- ---------- 20260826090407_7232c5be-6682-4771-9053-6068322616e1.sql ----------
+CREATE TABLE IF NOT EXISTS public.email_settings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider text NOT NULL DEFAULT 'resend',
+  api_key text,
+  from_email text,
+  from_name text,
+  notify_on_create boolean NOT NULL DEFAULT true,
+  notify_on_status boolean NOT NULL DEFAULT true,
+  enabled boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.email_settings TO authenticated;
+GRANT ALL ON public.email_settings TO service_role;
+ALTER TABLE public.email_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "email_settings_admin_all" ON public.email_settings;
+CREATE POLICY "email_settings_admin_all" ON public.email_settings
+FOR ALL TO authenticated
+USING (private.has_role(auth.uid(), 'admin'::public.app_role))
+WITH CHECK (private.has_role(auth.uid(), 'admin'::public.app_role));
+
+CREATE TABLE IF NOT EXISTS public.notification_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  transaction_id uuid REFERENCES public.transactions(id) ON DELETE SET NULL,
+  client_id uuid REFERENCES public.clients(id) ON DELETE SET NULL,
+  channel text NOT NULL DEFAULT 'email',
+  kind text NOT NULL,
+  recipient text,
+  subject text,
+  status text NOT NULL,
+  error text,
+  created_by uuid,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+GRANT SELECT, INSERT ON public.notification_log TO authenticated;
+GRANT ALL ON public.notification_log TO service_role;
+ALTER TABLE public.notification_log ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "notification_log_read" ON public.notification_log;
+CREATE POLICY "notification_log_read" ON public.notification_log
+FOR SELECT TO authenticated
+USING (auth.uid() IS NOT NULL);
+
+DROP POLICY IF EXISTS "notification_log_insert" ON public.notification_log;
+CREATE POLICY "notification_log_insert" ON public.notification_log
+FOR INSERT TO authenticated
+WITH CHECK (auth.uid() IS NOT NULL);
+
+DROP TRIGGER IF EXISTS email_settings_updated_at ON public.email_settings;
+CREATE TRIGGER email_settings_updated_at BEFORE UPDATE ON public.email_settings
+FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+-- ---------- 20260826130308_ac29a71a-c118-4884-8a0b-9752789778b1.sql ----------
+ALTER TABLE public.transaction_items ADD COLUMN IF NOT EXISTS qty numeric NOT NULL DEFAULT 1;
