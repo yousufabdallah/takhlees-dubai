@@ -733,3 +733,509 @@ USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::a
 WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role, 'staff'::app_role]));
 
 CREATE INDEX transaction_items_transaction_id_idx ON public.transaction_items(transaction_id);
+-- ---------- 20260825214552_cdf12758-e075-408e-bc97-17a5dff24a97.sql ----------
+CREATE TABLE public.service_statuses (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  type_id uuid NOT NULL REFERENCES public.transaction_types(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  name_en text,
+  color text NOT NULL DEFAULT 'muted',
+  sort_order integer NOT NULL DEFAULT 0,
+  is_final boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.service_statuses TO authenticated;
+GRANT ALL ON public.service_statuses TO service_role;
+
+ALTER TABLE public.service_statuses ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "service statuses read" ON public.service_statuses
+  FOR SELECT TO authenticated USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role, 'staff'::app_role]));
+CREATE POLICY "service statuses insert" ON public.service_statuses
+  FOR INSERT TO authenticated WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]));
+CREATE POLICY "service statuses update" ON public.service_statuses
+  FOR UPDATE TO authenticated USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role])) WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]));
+CREATE POLICY "service statuses delete" ON public.service_statuses
+  FOR DELETE TO authenticated USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]));
+
+CREATE INDEX service_statuses_type_idx ON public.service_statuses(type_id, sort_order);
+
+CREATE TRIGGER service_statuses_updated BEFORE UPDATE ON public.service_statuses
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+-- ---------- 20260826090407_7232c5be-6682-4771-9053-6068322616e1.sql ----------
+CREATE TABLE IF NOT EXISTS public.email_settings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider text NOT NULL DEFAULT 'resend',
+  api_key text,
+  from_email text,
+  from_name text,
+  notify_on_create boolean NOT NULL DEFAULT true,
+  notify_on_status boolean NOT NULL DEFAULT true,
+  enabled boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.email_settings TO authenticated;
+GRANT ALL ON public.email_settings TO service_role;
+ALTER TABLE public.email_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "email_settings_admin_all" ON public.email_settings;
+CREATE POLICY "email_settings_admin_all" ON public.email_settings
+FOR ALL TO authenticated
+USING (private.has_role(auth.uid(), 'admin'::public.app_role))
+WITH CHECK (private.has_role(auth.uid(), 'admin'::public.app_role));
+
+CREATE TABLE IF NOT EXISTS public.notification_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  transaction_id uuid REFERENCES public.transactions(id) ON DELETE SET NULL,
+  client_id uuid REFERENCES public.clients(id) ON DELETE SET NULL,
+  channel text NOT NULL DEFAULT 'email',
+  kind text NOT NULL,
+  recipient text,
+  subject text,
+  status text NOT NULL,
+  error text,
+  created_by uuid,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+GRANT SELECT, INSERT ON public.notification_log TO authenticated;
+GRANT ALL ON public.notification_log TO service_role;
+ALTER TABLE public.notification_log ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "notification_log_read" ON public.notification_log;
+CREATE POLICY "notification_log_read" ON public.notification_log
+FOR SELECT TO authenticated
+USING (auth.uid() IS NOT NULL);
+
+DROP POLICY IF EXISTS "notification_log_insert" ON public.notification_log;
+CREATE POLICY "notification_log_insert" ON public.notification_log
+FOR INSERT TO authenticated
+WITH CHECK (auth.uid() IS NOT NULL);
+
+DROP TRIGGER IF EXISTS email_settings_updated_at ON public.email_settings;
+CREATE TRIGGER email_settings_updated_at BEFORE UPDATE ON public.email_settings
+FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+-- ---------- 20260826130308_ac29a71a-c118-4884-8a0b-9752789778b1.sql ----------
+ALTER TABLE public.transaction_items ADD COLUMN IF NOT EXISTS qty numeric NOT NULL DEFAULT 1;
+-- ---------- 20260923120000_transactions_delete_guard.sql ----------
+-- Transactions CRUD hardening. Everything here is enforced in the database, so it also
+-- applies to direct Supabase API calls that bypass the UI.
+--  1) Only admins may delete transactions. Reading and creating keep the previous access
+--     (admin, accountant, staff).
+--  2) Staff may still update a transaction, but only its status / completion date and the
+--     government-fee-paid flag (the inline controls in the transactions table). Changing
+--     client, services, fees, discount, VAT, etc. requires admin or accountant.
+--  3) A transaction whose invoice has recorded payments can never be deleted, and an invoice
+--     with recorded payments can never be deleted directly: invoices -> payments is
+--     ON DELETE CASCADE, so either delete would silently erase cash/bank receipts.
+--  4) Service lines (transaction_items) can be inserted by anyone who can create a
+--     transaction, but only admin/accountant may change or remove them.
+--  5) update_transaction_with_items(): edits a transaction and replaces its service lines
+--     in a single database transaction (all-or-nothing), enforcing the payment rules.
+
+-- 1) Split the transactions policy so DELETE is admin-only -------------------------------
+DROP POLICY IF EXISTS "transactions operations access" ON public.transactions;
+DROP POLICY IF EXISTS "transactions read" ON public.transactions;
+DROP POLICY IF EXISTS "transactions insert" ON public.transactions;
+DROP POLICY IF EXISTS "transactions update" ON public.transactions;
+DROP POLICY IF EXISTS "transactions delete" ON public.transactions;
+
+CREATE POLICY "transactions read" ON public.transactions
+FOR SELECT TO authenticated
+USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role, 'staff'::app_role]));
+
+CREATE POLICY "transactions insert" ON public.transactions
+FOR INSERT TO authenticated
+WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role, 'staff'::app_role]));
+
+CREATE POLICY "transactions update" ON public.transactions
+FOR UPDATE TO authenticated
+USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role, 'staff'::app_role]))
+WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role, 'staff'::app_role]));
+
+CREATE POLICY "transactions delete" ON public.transactions
+FOR DELETE TO authenticated
+USING (private.has_role(auth.uid(), 'admin'::app_role));
+
+-- 2) Staff may only change status / completion / gov-fee-paid ---------------------------
+CREATE OR REPLACE FUNCTION public.guard_transaction_update()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  -- auth.uid() is NULL for the service role / SQL editor: trusted server-side access.
+  IF auth.uid() IS NULL
+     OR private.has_any_role(auth.uid(), ARRAY['admin','accountant']::public.app_role[]) THEN
+    RETURN NEW;
+  END IF;
+  IF (NEW.ref_no, NEW.client_id, NEW.type_id, NEW.type_name, NEW.type_name_en,
+      NEW.gov_entity, NEW.gov_entity_en, NEW.employee_id, NEW.opened_at,
+      NEW.gov_fee, NEW.office_fee, NEW.discount, NEW.vat_rate, NEW.payment_method,
+      NEW.notes, NEW.created_by, NEW.created_at)
+     IS DISTINCT FROM
+     (OLD.ref_no, OLD.client_id, OLD.type_id, OLD.type_name, OLD.type_name_en,
+      OLD.gov_entity, OLD.gov_entity_en, OLD.employee_id, OLD.opened_at,
+      OLD.gov_fee, OLD.office_fee, OLD.discount, OLD.vat_rate, OLD.payment_method,
+      OLD.notes, OLD.created_by, OLD.created_at) THEN
+    RAISE EXCEPTION 'تعديل بيانات المعاملة متاح لمدير النظام والمحاسب فقط. يمكنك تغيير الحالة وحالة دفع الرسوم الحكومية.'
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END; $$;
+
+REVOKE EXECUTE ON FUNCTION public.guard_transaction_update() FROM public, anon, authenticated;
+
+DROP TRIGGER IF EXISTS transactions_guard_update ON public.transactions;
+CREATE TRIGGER transactions_guard_update BEFORE UPDATE ON public.transactions
+FOR EACH ROW EXECUTE FUNCTION public.guard_transaction_update();
+
+-- 3) Never delete a transaction or invoice that has payments -----------------------------
+CREATE OR REPLACE FUNCTION public.prevent_paid_transaction_delete()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM public.payments p
+    JOIN public.invoices i ON i.id = p.invoice_id
+    WHERE i.transaction_id = OLD.id
+  ) THEN
+    RAISE EXCEPTION 'لا يمكن حذف معاملة على فاتورتها دفعات مسجلة. احذف الدفعات أو عالجها أولاً.';
+  END IF;
+  RETURN OLD;
+END; $$;
+
+REVOKE EXECUTE ON FUNCTION public.prevent_paid_transaction_delete() FROM public, anon, authenticated;
+
+DROP TRIGGER IF EXISTS transactions_prevent_paid_delete ON public.transactions;
+CREATE TRIGGER transactions_prevent_paid_delete BEFORE DELETE ON public.transactions
+FOR EACH ROW EXECUTE FUNCTION public.prevent_paid_transaction_delete();
+
+CREATE OR REPLACE FUNCTION public.prevent_paid_invoice_delete()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.payments WHERE invoice_id = OLD.id) THEN
+    RAISE EXCEPTION 'لا يمكن حذف فاتورة عليها دفعات مسجلة.';
+  END IF;
+  RETURN OLD;
+END; $$;
+
+REVOKE EXECUTE ON FUNCTION public.prevent_paid_invoice_delete() FROM public, anon, authenticated;
+
+DROP TRIGGER IF EXISTS invoices_prevent_paid_delete ON public.invoices;
+CREATE TRIGGER invoices_prevent_paid_delete BEFORE DELETE ON public.invoices
+FOR EACH ROW EXECUTE FUNCTION public.prevent_paid_invoice_delete();
+
+-- 4) Service lines: insert for all operations roles, change/remove for admin/accountant --
+DROP POLICY IF EXISTS "transaction_items operations access" ON public.transaction_items;
+DROP POLICY IF EXISTS "transaction_items read" ON public.transaction_items;
+DROP POLICY IF EXISTS "transaction_items insert" ON public.transaction_items;
+DROP POLICY IF EXISTS "transaction_items update" ON public.transaction_items;
+DROP POLICY IF EXISTS "transaction_items delete" ON public.transaction_items;
+
+CREATE POLICY "transaction_items read" ON public.transaction_items
+FOR SELECT TO authenticated
+USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role, 'staff'::app_role]));
+
+CREATE POLICY "transaction_items insert" ON public.transaction_items
+FOR INSERT TO authenticated
+WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role, 'staff'::app_role]));
+
+CREATE POLICY "transaction_items update" ON public.transaction_items
+FOR UPDATE TO authenticated
+USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]))
+WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]));
+
+CREATE POLICY "transaction_items delete" ON public.transaction_items
+FOR DELETE TO authenticated
+USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]));
+
+-- 5) Atomic edit ---------------------------------------------------------------------------
+-- SECURITY INVOKER: runs with the caller's rights, so every RLS policy and trigger above
+-- still applies. p_patch holds the editable transaction columns; p_items the new lines.
+CREATE OR REPLACE FUNCTION public.update_transaction_with_items(
+  p_id uuid,
+  p_patch jsonb,
+  p_items jsonb
+)
+RETURNS void LANGUAGE plpgsql SECURITY INVOKER SET search_path = public AS $$
+DECLARE
+  v_old_client uuid;
+  v_paid numeric;
+  v_total numeric;
+BEGIN
+  IF NOT private.has_any_role(auth.uid(), ARRAY['admin','accountant']::public.app_role[]) THEN
+    RAISE EXCEPTION 'تعديل المعاملات متاح لمدير النظام والمحاسب فقط.' USING ERRCODE = '42501';
+  END IF;
+  IF p_items IS NULL OR jsonb_typeof(p_items) <> 'array' OR jsonb_array_length(p_items) = 0 THEN
+    RAISE EXCEPTION 'يجب أن تحتوي المعاملة على خدمة واحدة على الأقل.';
+  END IF;
+
+  SELECT client_id INTO v_old_client FROM public.transactions WHERE id = p_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'المعاملة غير موجودة.';
+  END IF;
+
+  UPDATE public.transactions AS t SET
+    client_id       = r.client_id,
+    type_id         = r.type_id,
+    type_name       = r.type_name,
+    type_name_en    = r.type_name_en,
+    gov_entity      = r.gov_entity,
+    gov_entity_en   = r.gov_entity_en,
+    employee_id     = r.employee_id,
+    status          = r.status,
+    opened_at       = r.opened_at,
+    completed_at    = r.completed_at,
+    gov_fee         = r.gov_fee,
+    office_fee      = r.office_fee,
+    discount        = r.discount,
+    vat_rate        = r.vat_rate,
+    payment_method  = r.payment_method,
+    gov_fee_paid    = r.gov_fee_paid,
+    gov_fee_paid_at = r.gov_fee_paid_at,
+    notes           = r.notes
+  FROM (
+    -- keys missing from p_patch keep their current value
+    SELECT (jsonb_populate_record(cur, p_patch)).*
+    FROM public.transactions AS cur
+    WHERE cur.id = p_id
+  ) AS r
+  WHERE t.id = p_id;
+
+  DELETE FROM public.transaction_items WHERE transaction_id = p_id;
+
+  INSERT INTO public.transaction_items (
+    transaction_id, entity_id, gov_entity, gov_entity_en, type_id, type_name, type_name_en,
+    gov_fee, office_fee, qty, sort_order
+  )
+  SELECT p_id, x.entity_id, x.gov_entity, x.gov_entity_en, x.type_id, x.type_name, x.type_name_en,
+         COALESCE(x.gov_fee, 0), COALESCE(x.office_fee, 0), GREATEST(COALESCE(x.qty, 1), 1),
+         COALESCE(x.sort_order, 0)
+  FROM jsonb_populate_recordset(NULL::public.transaction_items, p_items) AS x;
+
+  -- The invoice is re-synced by the transactions trigger above; check it against payments.
+  SELECT paid, total INTO v_paid, v_total FROM public.invoices WHERE transaction_id = p_id;
+  IF COALESCE(v_paid, 0) > 0 THEN
+    IF (SELECT client_id FROM public.transactions WHERE id = p_id) IS DISTINCT FROM v_old_client THEN
+      RAISE EXCEPTION 'لا يمكن تغيير عميل معاملة على فاتورتها دفعات مسجلة.';
+    END IF;
+    IF v_total < v_paid THEN
+      RAISE EXCEPTION 'لا يمكن أن يقل إجمالي الفاتورة (%) عن المبلغ المحصّل (%).', v_total, v_paid;
+    END IF;
+  END IF;
+END; $$;
+
+REVOKE EXECUTE ON FUNCTION public.update_transaction_with_items(uuid, jsonb, jsonb) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.update_transaction_with_items(uuid, jsonb, jsonb) TO authenticated;
+-- ---------- 20260923130000_clients_delete_admin_only.sql ----------
+-- Clients CRUD hardening: only admins may delete clients.
+-- Reading, creating and updating keep the previous access (admin, accountant, staff).
+-- Clients with transactions or invoices are already protected by ON DELETE RESTRICT;
+-- their documents rows cascade (the storage files are removed by the app).
+
+DROP POLICY IF EXISTS "clients operations access" ON public.clients;
+DROP POLICY IF EXISTS "clients read" ON public.clients;
+DROP POLICY IF EXISTS "clients insert" ON public.clients;
+DROP POLICY IF EXISTS "clients update" ON public.clients;
+DROP POLICY IF EXISTS "clients delete" ON public.clients;
+
+CREATE POLICY "clients read" ON public.clients
+FOR SELECT TO authenticated
+USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role, 'staff'::app_role]));
+
+CREATE POLICY "clients insert" ON public.clients
+FOR INSERT TO authenticated
+WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role, 'staff'::app_role]));
+
+CREATE POLICY "clients update" ON public.clients
+FOR UPDATE TO authenticated
+USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role, 'staff'::app_role]))
+WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role, 'staff'::app_role]));
+
+CREATE POLICY "clients delete" ON public.clients
+FOR DELETE TO authenticated
+USING (private.has_role(auth.uid(), 'admin'::app_role));
+-- ---------- 20260923140000_employees_suppliers_delete_guard.sql ----------
+-- Employees & suppliers CRUD hardening.
+--  * Reading, creating and updating keep the previous access (admin, accountant).
+--  * Only admins may delete.
+--  * An employee with payroll entries can never be deleted: payroll_entries.employee_id is
+--    ON DELETE CASCADE, so a delete would silently erase salary/advance history.
+--    Employees referenced by transactions or expenses are already protected by their FKs.
+--    Deactivate (active = false) instead.
+--  * Suppliers referenced by expenses are already protected by their FK (no cascade).
+
+DROP POLICY IF EXISTS "employees finance access" ON public.employees;
+DROP POLICY IF EXISTS "employees read" ON public.employees;
+DROP POLICY IF EXISTS "employees insert" ON public.employees;
+DROP POLICY IF EXISTS "employees update" ON public.employees;
+DROP POLICY IF EXISTS "employees delete" ON public.employees;
+
+CREATE POLICY "employees read" ON public.employees
+FOR SELECT TO authenticated
+USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]));
+
+CREATE POLICY "employees insert" ON public.employees
+FOR INSERT TO authenticated
+WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]));
+
+CREATE POLICY "employees update" ON public.employees
+FOR UPDATE TO authenticated
+USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]))
+WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]));
+
+CREATE POLICY "employees delete" ON public.employees
+FOR DELETE TO authenticated
+USING (private.has_role(auth.uid(), 'admin'::app_role));
+
+CREATE OR REPLACE FUNCTION public.prevent_employee_with_payroll_delete()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.payroll_entries WHERE employee_id = OLD.id) THEN
+    RAISE EXCEPTION 'لا يمكن حذف موظف له حركات رواتب مسجلة. أوقف الموظف بدلاً من الحذف.';
+  END IF;
+  RETURN OLD;
+END; $$;
+
+REVOKE EXECUTE ON FUNCTION public.prevent_employee_with_payroll_delete() FROM public, anon, authenticated;
+
+DROP TRIGGER IF EXISTS employees_prevent_payroll_delete ON public.employees;
+CREATE TRIGGER employees_prevent_payroll_delete BEFORE DELETE ON public.employees
+FOR EACH ROW EXECUTE FUNCTION public.prevent_employee_with_payroll_delete();
+
+DROP POLICY IF EXISTS "suppliers finance access" ON public.suppliers;
+DROP POLICY IF EXISTS "suppliers read" ON public.suppliers;
+DROP POLICY IF EXISTS "suppliers insert" ON public.suppliers;
+DROP POLICY IF EXISTS "suppliers update" ON public.suppliers;
+DROP POLICY IF EXISTS "suppliers delete" ON public.suppliers;
+
+CREATE POLICY "suppliers read" ON public.suppliers
+FOR SELECT TO authenticated
+USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]));
+
+CREATE POLICY "suppliers insert" ON public.suppliers
+FOR INSERT TO authenticated
+WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]));
+
+CREATE POLICY "suppliers update" ON public.suppliers
+FOR UPDATE TO authenticated
+USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]))
+WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]));
+
+CREATE POLICY "suppliers delete" ON public.suppliers
+FOR DELETE TO authenticated
+USING (private.has_role(auth.uid(), 'admin'::app_role));
+-- ---------- 20260923150000_invoices_payments_guard.sql ----------
+-- Invoices & payments hardening (enforced in the database, so it also applies to direct
+-- Supabase API calls that bypass the UI).
+--
+-- Invoices are always derived data: created by create_invoice_for_transaction, kept in sync
+-- by sync_invoice_from_transaction / sync_invoice_paid and recalculated by
+-- calc_invoice_totals. Those triggers are SECURITY DEFINER (they run as the table owner), so
+-- they are not affected by the user-facing policies below.
+--
+--  Invoices
+--   * read: admin, accountant, staff (unchanged)
+--   * insert: nobody directly - only the transaction trigger creates invoices
+--   * update: admin, accountant - and only non-financial fields (issue/due date, notes,
+--     status e.g. marking as refunded). Fees, discount, VAT rate, paid, client, transaction
+--     and invoice number can only change through the sync triggers.
+--   * delete: nobody directly - an invoice is removed only together with its transaction
+--     (cascade, admin-only, and never when payments exist; see invoices_prevent_paid_delete
+--     in migration 20260923120000).
+--
+--  Payments
+--   * read / insert: admin, accountant, staff (unchanged - staff record payments on the
+--     invoice page)
+--   * update / delete: admin, accountant
+--   * a payment can never be moved to another invoice (sync_invoice_paid would only
+--     recalculate the new invoice and leave the old invoice's paid amount wrong)
+--   * new payments must have a positive amount
+
+-- Invoices ------------------------------------------------------------------------------
+DROP POLICY IF EXISTS "invoices operations access" ON public.invoices;
+DROP POLICY IF EXISTS "invoices read" ON public.invoices;
+DROP POLICY IF EXISTS "invoices update" ON public.invoices;
+
+CREATE POLICY "invoices read" ON public.invoices
+FOR SELECT TO authenticated
+USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role, 'staff'::app_role]));
+
+CREATE POLICY "invoices update" ON public.invoices
+FOR UPDATE TO authenticated
+USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]))
+WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]));
+
+-- No INSERT or DELETE policy: with RLS enabled, direct inserts/deletes are denied.
+
+CREATE OR REPLACE FUNCTION public.guard_invoice_update()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  -- auth.uid() IS NULL: service role / SQL editor (trusted server-side access).
+  -- pg_trigger_depth() > 1: the change comes from the sync triggers (transaction edit or
+  -- payment change), which compute these values themselves.
+  IF auth.uid() IS NULL OR pg_trigger_depth() > 1 THEN
+    RETURN NEW;
+  END IF;
+  IF (NEW.invoice_no, NEW.transaction_id, NEW.client_id, NEW.gov_fees, NEW.office_fees,
+      NEW.discount, NEW.vat_rate, NEW.paid, NEW.created_at)
+     IS DISTINCT FROM
+     (OLD.invoice_no, OLD.transaction_id, OLD.client_id, OLD.gov_fees, OLD.office_fees,
+      OLD.discount, OLD.vat_rate, OLD.paid, OLD.created_at) THEN
+    RAISE EXCEPTION 'المبالغ والعميل في الفاتورة تُحسب تلقائياً من المعاملة والدفعات ولا يمكن تعديلها مباشرة. عدّل المعاملة أو الدفعات بدلاً من ذلك.'
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END; $$;
+
+REVOKE EXECUTE ON FUNCTION public.guard_invoice_update() FROM public, anon, authenticated;
+
+DROP TRIGGER IF EXISTS invoices_guard_update ON public.invoices;
+CREATE TRIGGER invoices_guard_update BEFORE UPDATE ON public.invoices
+FOR EACH ROW EXECUTE FUNCTION public.guard_invoice_update();
+
+-- Payments ------------------------------------------------------------------------------
+DROP POLICY IF EXISTS "payments operations access" ON public.payments;
+DROP POLICY IF EXISTS "payments read" ON public.payments;
+DROP POLICY IF EXISTS "payments insert" ON public.payments;
+DROP POLICY IF EXISTS "payments update" ON public.payments;
+DROP POLICY IF EXISTS "payments delete" ON public.payments;
+
+CREATE POLICY "payments read" ON public.payments
+FOR SELECT TO authenticated
+USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role, 'staff'::app_role]));
+
+CREATE POLICY "payments insert" ON public.payments
+FOR INSERT TO authenticated
+WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role, 'staff'::app_role]));
+
+CREATE POLICY "payments update" ON public.payments
+FOR UPDATE TO authenticated
+USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]))
+WITH CHECK (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]));
+
+CREATE POLICY "payments delete" ON public.payments
+FOR DELETE TO authenticated
+USING (private.has_any_role(auth.uid(), ARRAY['admin'::app_role, 'accountant'::app_role]));
+
+CREATE OR REPLACE FUNCTION public.guard_payment_update()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NEW.invoice_id IS DISTINCT FROM OLD.invoice_id THEN
+    RAISE EXCEPTION 'لا يمكن نقل دفعة إلى فاتورة أخرى. احذفها وسجّلها على الفاتورة الصحيحة.';
+  END IF;
+  RETURN NEW;
+END; $$;
+
+REVOKE EXECUTE ON FUNCTION public.guard_payment_update() FROM public, anon, authenticated;
+
+DROP TRIGGER IF EXISTS payments_guard_update ON public.payments;
+CREATE TRIGGER payments_guard_update BEFORE UPDATE ON public.payments
+FOR EACH ROW EXECUTE FUNCTION public.guard_payment_update();
+
+-- NOT VALID: applies to new and updated rows without failing on any historical data.
+ALTER TABLE public.payments DROP CONSTRAINT IF EXISTS payments_amount_positive;
+ALTER TABLE public.payments
+  ADD CONSTRAINT payments_amount_positive CHECK (amount > 0) NOT VALID;

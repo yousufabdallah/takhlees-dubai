@@ -37,6 +37,8 @@ docker compose up -d
 psql "postgresql://postgres:PASSWORD@<سيرفرك>:5432/postgres" -f schema.sql
 ```
 
+> هذه الخطوة لقاعدة بيانات جديدة فارغة فقط. إذا كانت عندك قاعدة قائمة فراجع قسم [ترقية تثبيت قائم](#ترقية-تثبيت-قائم).
+
 ### 3) إنشاء حسابات الموظفين
 
 الحسابات لا تُنقل بكلمات مرورها (مشفّرة). أنشئ المستخدمين من Supabase Studio → Authentication → Add user، ثم عدّل ملفات `data/profiles.csv` و`data/user_roles.csv` لتطابق معرّفات المستخدمين الجديدة (عمود `id` / `user_id`).
@@ -61,6 +63,50 @@ SUPABASE_SERVICE_ROLE_KEY=<SERVICE_ROLE_KEY الخاص بك>
 ```
 
 بعدها تبني نسخة من المشروع وتشغّلها على سيرفرك (أو أي استضافة تختارها) وتكون كل البيانات محلياً عندك.
+
+## ترقية تثبيت قائم
+
+ملف `schema.sql` المحدَّث مخصص **للتثبيت الجديد فقط** (قاعدة بيانات فارغة).
+
+> ⚠️ **لا تُعِد تشغيل `schema.sql` كاملاً على قاعدة بيانات قائمة.** سيفشل عند محاولة إنشاء الجداول الموجودة أصلاً، وقد يترك القاعدة في حالة غير مكتملة.
+
+إذا كانت قاعدتك منشأة من نسخة سابقة من `schema.sql`، طبّق بدلاً من ذلك ملفات الـ migrations السبعة التالية فقط من المجلد `supabase/migrations/`، **بهذا الترتيب الزمني**:
+
+| # | الملف | المحتوى |
+|---|------|-------|
+| 1 | `20260825214552_cdf12758-e075-408e-bc97-17a5dff24a97.sql` | جدول حالات الخدمات `service_statuses` |
+| 2 | `20260826090407_7232c5be-6682-4771-9053-6068322616e1.sql` | جدولا إعدادات البريد `email_settings` وسجل الإشعارات `notification_log` |
+| 3 | `20260826130308_ac29a71a-c118-4884-8a0b-9752789778b1.sql` | عمود العدد `qty` في `transaction_items` |
+| 4 | `20260923120000_transactions_delete_guard.sql` | حماية المعاملات والفواتير المدفوعة، والتعديل الذري للمعاملة |
+| 5 | `20260923130000_clients_delete_admin_only.sql` | حذف العملاء لمدير النظام فقط |
+| 6 | `20260923140000_employees_suppliers_delete_guard.sql` | حذف الموظفين والموردين لمدير النظام فقط، ومنع حذف موظف له رواتب |
+| 7 | `20260923150000_invoices_payments_guard.sql` | حماية مبالغ الفواتير والدفعات من التعديل المباشر |
+
+الملفات 1–3 كانت ناقصة من `schema.sql` السابق، والملفات 4–7 هي تحديثات الحماية الجديدة للإنتاج.
+
+من المجلد الرئيسي للمشروع:
+
+```bash
+export DB_URL="postgresql://postgres:PASSWORD@<سيرفرك>:5432/postgres"
+pg_dump "$DB_URL" > backup-before-upgrade-$(date +%F).sql
+
+for f in \
+  supabase/migrations/20260825214552_cdf12758-e075-408e-bc97-17a5dff24a97.sql \
+  supabase/migrations/20260826090407_7232c5be-6682-4771-9053-6068322616e1.sql \
+  supabase/migrations/20260826130308_ac29a71a-c118-4884-8a0b-9752789778b1.sql \
+  supabase/migrations/20260923120000_transactions_delete_guard.sql \
+  supabase/migrations/20260923130000_clients_delete_admin_only.sql \
+  supabase/migrations/20260923140000_employees_suppliers_delete_guard.sql \
+  supabase/migrations/20260923150000_invoices_payments_guard.sql
+do
+  echo "==> $f"
+  psql "$DB_URL" -v ON_ERROR_STOP=1 --single-transaction -f "$f" || break
+done
+```
+
+- كل ملف يُطبَّق في عملية واحدة: عند أي خطأ يُلغى الملف بالكامل ويتوقف التنفيذ. عالج الخطأ ثم أكمل من الملف الذي فشل، دون إعادة الملفات التي نجحت.
+- إذا فشل أحد الملفات 1–3 بخطأ `already exists` فهو مطبَّق مسبقاً على قاعدتك؛ تخطَّه وأكمل بالذي بعده.
+- طبّق الملفات السبعة **قبل** تشغيل النسخة الجديدة من التطبيق، لأن تعديل المعاملات يعتمد على الدالة التي يضيفها الملف 4.
 
 ## ملاحظات
 
