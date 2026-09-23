@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus, UserCog } from "lucide-react";
+import { Loader2, Pencil, Plus, Power, Trash2, UserCog } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +25,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ConfirmDeleteDialog, type DeleteCheck } from "@/components/ConfirmDeleteDialog";
+import { useI18n } from "@/lib/i18n";
+import { useRole } from "@/hooks/useRole";
+import { canDeleteStaffOrSupplier } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_authenticated/employees")({
   head: () => ({
@@ -51,6 +55,14 @@ type Employee = {
   active: boolean;
 };
 
+const EMPTY_EMP = {
+  name: "",
+  phone: "",
+  job_title: "",
+  salary: "0",
+  commission_rate: "0",
+};
+
 type Payroll = {
   id: string;
   employee_id: string;
@@ -65,13 +77,15 @@ function EmployeesPage() {
   const invalidate = useInvalidate();
   const [empOpen, setEmpOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
-  const [emp, setEmp] = useState({
-    name: "",
-    phone: "",
-    job_title: "",
-    salary: "0",
-    commission_rate: "0",
-  });
+  const [emp, setEmp] = useState(EMPTY_EMP);
+  const { lang } = useI18n();
+  const tr = (ar: string, en: string) => (lang === "en" ? en : ar);
+  const { role } = useRole();
+  const canDelete = canDeleteStaffOrSupplier(role);
+  const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
+  const [savingEmp, setSavingEmp] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deleteEmp, setDeleteEmp] = useState<Employee | null>(null);
   const [pay, setPay] = useState({
     employee_id: "",
     entry_type: "salary",
@@ -113,26 +127,149 @@ function EmployeesPage() {
     return { count: mine.length, value, commission, paid, deductions };
   }
 
+  function openEditEmployee(e: Employee) {
+    setEditingEmp(e);
+    setEmp({
+      name: e.name,
+      phone: e.phone ?? "",
+      job_title: e.job_title ?? "",
+      salary: String(e.salary),
+      commission_rate: String(e.commission_rate),
+    });
+    setEmpOpen(true);
+  }
+
+  function handleEmpOpenChange(next: boolean) {
+    if (savingEmp) return;
+    setEmpOpen(next);
+    // نموذج التعديل لا يبقى معبأً بعد الإغلاق حتى لا يختلط بموظف جديد
+    if (!next && editingEmp) {
+      setEditingEmp(null);
+      setEmp(EMPTY_EMP);
+    }
+  }
+
+  // أسماء الموظفين تظهر في المعاملات والمصروفات وحركات الرواتب
+  function invalidateEmployees() {
+    invalidate("employees", "employees-min", "payroll", "transactions", "expenses");
+  }
+
   async function saveEmployee() {
     if (!emp.name.trim()) {
       toast.error("اسم الموظف مطلوب");
       return;
     }
-    const { error } = await supabase.from("employees").insert({
+    const payload = {
       name: emp.name.trim(),
       phone: emp.phone || null,
       job_title: emp.job_title || null,
       salary: Number(emp.salary),
       commission_rate: Number(emp.commission_rate),
-    });
+    };
+    setSavingEmp(true);
+    try {
+      if (editingEmp) {
+        const { data, error } = await supabase
+          .from("employees")
+          .update(payload)
+          .eq("id", editingEmp.id)
+          .select("id");
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+        if (!data || data.length === 0) {
+          toast.error(tr("لا تملك صلاحية تعديل الموظفين", "You are not allowed to edit employees"));
+          return;
+        }
+        toast.success(tr("تم تحديث بيانات الموظف", "Employee updated"));
+      } else {
+        const { error } = await supabase.from("employees").insert(payload);
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+        toast.success("تمت إضافة الموظف");
+      }
+      setEmpOpen(false);
+      setEditingEmp(null);
+      setEmp(EMPTY_EMP);
+      invalidateEmployees();
+    } finally {
+      setSavingEmp(false);
+    }
+  }
+
+  async function toggleActive(e: Employee) {
+    setTogglingId(e.id);
+    try {
+      const { data, error } = await supabase
+        .from("employees")
+        .update({ active: !e.active })
+        .eq("id", e.id)
+        .select("id");
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      if (!data || data.length === 0) {
+        toast.error(tr("لا تملك صلاحية تعديل الموظفين", "You are not allowed to edit employees"));
+        return;
+      }
+      toast.success(
+        e.active
+          ? tr(
+              `تم إيقاف ${e.name} — لن يظهر في اختيار المعاملات والمصروفات الجديدة`,
+              `${e.name} deactivated — hidden from new transactions and expenses`,
+            )
+          : tr(`تمت إعادة تفعيل ${e.name}`, `${e.name} reactivated`),
+      );
+      invalidateEmployees();
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
+  async function checkEmployeeDelete(e: Employee): Promise<DeleteCheck> {
+    const count = (table: "transactions" | "expenses" | "payroll_entries") =>
+      supabase.from(table).select("id", { count: "exact", head: true }).eq("employee_id", e.id);
+    const [t, x, p] = await Promise.all([
+      count("transactions"),
+      count("expenses"),
+      count("payroll_entries"),
+    ]);
+    const err = t.error ?? x.error ?? p.error;
+    if (err) throw new Error(err.message);
+    const trxN = t.count ?? 0;
+    const expN = x.count ?? 0;
+    const payN = p.count ?? 0;
+    if (trxN + expN + payN > 0)
+      return {
+        blockedReason: tr(
+          `لا يمكن حذف ${e.name}: مرتبط بـ ${trxN} معاملة و${expN} مصروف و${payN} حركة رواتب. أوقف الموظف بدلاً من الحذف للحفاظ على السجل.`,
+          `Cannot delete ${e.name}: linked to ${trxN} transaction(s), ${expN} expense(s) and ${payN} payroll entries. Deactivate the employee instead to keep the history.`,
+        ),
+        willDelete: [],
+      };
+    return {
+      blockedReason: null,
+      willDelete: [tr(`بيانات الموظف ${e.name}`, `Employee ${e.name}`)],
+    };
+  }
+
+  async function confirmEmployeeDelete(e: Employee) {
+    const { data, error } = await supabase.from("employees").delete().eq("id", e.id).select("id");
     if (error) {
       toast.error(error.message);
       return;
     }
-    toast.success("تمت إضافة الموظف");
-    setEmpOpen(false);
-    setEmp({ name: "", phone: "", job_title: "", salary: "0", commission_rate: "0" });
-    invalidate("employees", "employees-min");
+    if (!data || data.length === 0) {
+      toast.error(tr("لا تملك صلاحية حذف الموظفين", "You are not allowed to delete employees"));
+      return;
+    }
+    toast.success(tr(`تم حذف ${e.name}`, `${e.name} deleted`));
+    setDeleteEmp(null);
+    invalidateEmployees();
   }
 
   async function savePayroll() {
@@ -171,7 +308,7 @@ function EmployeesPage() {
             <Button variant="secondary" onClick={() => setPayOpen(true)}>
               <Plus className="size-4" /> حركة راتب/عمولة
             </Button>
-            <Button onClick={() => setEmpOpen(true)}>
+            <Button onClick={() => handleEmpOpenChange(true)}>
               <Plus className="size-4" /> موظف جديد
             </Button>
           </div>
@@ -202,6 +339,7 @@ function EmployeesPage() {
             <Th>المصروف له</Th>
             <Th>الخصومات</Th>
             <Th>الحالة</Th>
+            <Th>{tr("إجراءات", "Actions")}</Th>
           </tr>
         </thead>
         <tbody>
@@ -226,6 +364,53 @@ function EmployeesPage() {
                     }
                   />
                 </Td>
+                <Td>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      onClick={() => openEditEmployee(e)}
+                      aria-label={tr("تعديل الموظف", "Edit employee")}
+                      title={tr("تعديل", "Edit")}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      disabled={togglingId === e.id}
+                      onClick={() => void toggleActive(e)}
+                      aria-label={
+                        e.active ? tr("إيقاف", "Deactivate") : tr("إعادة تفعيل", "Reactivate")
+                      }
+                      title={e.active ? tr("إيقاف", "Deactivate") : tr("إعادة تفعيل", "Reactivate")}
+                    >
+                      {togglingId === e.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Power
+                          className={
+                            e.active ? "size-4 text-warning-foreground" : "size-4 text-success"
+                          }
+                        />
+                      )}
+                    </Button>
+                    {canDelete && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-destructive hover:text-destructive"
+                        onClick={() => setDeleteEmp(e)}
+                        aria-label={tr("حذف الموظف", "Delete employee")}
+                        title={tr("حذف", "Delete")}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    )}
+                  </div>
+                </Td>
               </tr>
             );
           })}
@@ -233,7 +418,21 @@ function EmployeesPage() {
       </TableWrap>
       {list.length === 0 && (
         <div className="surface mt-3">
-          <EmptyState text="لا يوجد موظفون." />
+          {employees.isLoading ? (
+            <div className="flex items-center justify-center gap-2 p-10 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              {tr("جارٍ تحميل الموظفين…", "Loading employees…")}
+            </div>
+          ) : employees.error ? (
+            <EmptyState
+              text={tr(
+                `تعذّر تحميل الموظفين: ${employees.error.message}`,
+                `Could not load employees: ${employees.error.message}`,
+              )}
+            />
+          ) : (
+            <EmptyState text="لا يوجد موظفون." />
+          )}
         </div>
       )}
 
@@ -266,10 +465,14 @@ function EmployeesPage() {
         </div>
       )}
 
-      <Dialog open={empOpen} onOpenChange={setEmpOpen}>
+      <Dialog open={empOpen} onOpenChange={handleEmpOpenChange}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>موظف جديد</DialogTitle>
+            <DialogTitle>
+              {editingEmp
+                ? tr(`تعديل بيانات ${editingEmp.name}`, `Edit ${editingEmp.name}`)
+                : "موظف جديد"}
+            </DialogTitle>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5 sm:col-span-2">
@@ -311,7 +514,19 @@ function EmployeesPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={saveEmployee}>حفظ</Button>
+            {editingEmp && (
+              <Button
+                variant="outline"
+                onClick={() => handleEmpOpenChange(false)}
+                disabled={savingEmp}
+              >
+                {tr("إلغاء", "Cancel")}
+              </Button>
+            )}
+            <Button onClick={saveEmployee} disabled={savingEmp}>
+              {savingEmp && <Loader2 className="size-4 animate-spin" />}
+              {editingEmp ? tr("حفظ التعديلات", "Save changes") : "حفظ"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -388,6 +603,17 @@ function EmployeesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        targetKey={deleteEmp?.id ?? null}
+        title={tr(
+          `حذف الموظف ${deleteEmp?.name ?? ""}؟`,
+          `Delete employee ${deleteEmp?.name ?? ""}?`,
+        )}
+        check={() => checkEmployeeDelete(deleteEmp!)}
+        onConfirm={() => confirmEmployeeDelete(deleteEmp!)}
+        onClose={() => setDeleteEmp(null)}
+      />
     </>
   );
 }

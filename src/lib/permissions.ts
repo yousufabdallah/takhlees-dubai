@@ -42,8 +42,30 @@ export function canAccess(role: AppRole | null, path: string): boolean {
   return allowed ? allowed.includes(role) : role === "admin";
 }
 
+/** تعديل المعاملة كاملة (العميل والخدمات والرسوم) — تغيير الحالة متاح للجميع من الجدول */
+export function canEditTransaction(role: AppRole | null): boolean {
+  return role === "admin" || role === "accountant";
+}
+
+/** حذف المعاملة — مدير النظام فقط (مفروض أيضاً بسياسة RLS في قاعدة البيانات) */
+export function canDeleteTransaction(role: AppRole | null): boolean {
+  return role === "admin";
+}
+
+/** حذف العميل — مدير النظام فقط (مفروض أيضاً بسياسة RLS). التعديل متاح لكل من يدخل قسم العملاء */
+export function canDeleteClient(role: AppRole | null): boolean {
+  return role === "admin";
+}
+
+/**
+ * حذف الموظفين والموردين — مدير النظام فقط (مفروض أيضاً بسياسة RLS).
+ * التعديل وإيقاف الموظف متاحان لكل من يدخل القسم (مدير، محاسب).
+ */
+export function canDeleteStaffOrSupplier(role: AppRole | null): boolean {
+  return role === "admin";
+}
+
 /** صلاحية إضافة/تعديل/حذف الجهات الحكومية والخدمات */
 export function canManageCatalog(role: AppRole | null): boolean {
   return role === "admin" || role === "accountant";
 }
-

@@ -1,19 +1,11 @@
 import { useRef, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Paperclip, Upload } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { ArrowRight, Paperclip, Pencil, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useInvalidate, useSb } from "@/lib/queries";
-import {
-  Badge,
-  EmptyState,
-  PageHeader,
-  StatCard,
-  TableWrap,
-  Td,
-  Th,
-} from "@/components/ui-kit";
+import { Badge, EmptyState, PageHeader, StatCard, TableWrap, Td, Th } from "@/components/ui-kit";
 import {
   CLIENT_STATUS,
   CLIENT_TYPE,
@@ -30,6 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ClientFormDialog, DeleteClientDialog } from "@/components/ClientDialogs";
+import { useI18n } from "@/lib/i18n";
+import { useRole } from "@/hooks/useRole";
+import { canDeleteClient } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_authenticated/clients/$id")({
   head: () => ({
@@ -60,6 +56,13 @@ function ClientProfile() {
   const invalidate = useInvalidate();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const navigate = useNavigate();
+  const { lang } = useI18n();
+  const tr = (ar: string, en: string) => (lang === "en" ? en : ar);
+  const { role } = useRole();
+  const canDelete = canDeleteClient(role);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const client = useSb<Client>(["client", id], () =>
     supabase.from("clients").select("*").eq("id", id).single(),
@@ -118,7 +121,9 @@ function ClientProfile() {
       toast.error(error.message);
       return;
     }
-    await supabase.from("documents").insert({ client_id: id, file_name: file.name, file_path: path });
+    await supabase
+      .from("documents")
+      .insert({ client_id: id, file_name: file.name, file_path: path });
     setUploading(false);
     toast.success("تم رفع المستند");
     invalidate("client-docs");
@@ -145,18 +150,32 @@ function ClientProfile() {
         subtitle={c ? `${CLIENT_TYPE[c.client_type]} • ${c.phone ?? "بدون هاتف"}` : ""}
         action={
           c && (
-            <Select value={c.status} onValueChange={changeStatus}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(CLIENT_STATUS).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>
-                    {v}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={c.status} onValueChange={changeStatus}>
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(CLIENT_STATUS).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={() => setEditOpen(true)}>
+                <Pencil className="size-4" /> {tr("تعديل", "Edit")}
+              </Button>
+              {canDelete && (
+                <Button
+                  variant="outline"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  <Trash2 className="size-4" /> {tr("حذف", "Delete")}
+                </Button>
+              )}
+            </div>
           )
         }
       />
@@ -254,6 +273,22 @@ function ClientProfile() {
           )}
         </div>
       </div>
+
+      <ClientFormDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        client={c ?? null}
+        onSaved={() => invalidate("client", "clients", "clients-min", "transactions", "invoices")}
+      />
+      <DeleteClientDialog
+        client={deleteOpen && c ? c : null}
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={() => {
+          setDeleteOpen(false);
+          invalidate("clients", "clients-min", "dash-clients");
+          void navigate({ to: "/clients" });
+        }}
+      />
     </>
   );
 }
